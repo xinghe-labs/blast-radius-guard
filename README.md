@@ -1,5 +1,9 @@
 # windows-delete-guard
 
+[![CI](https://github.com/xinghe-labs/windows-delete-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/xinghe-labs/windows-delete-guard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![hosts: ubuntu + windows](https://img.shields.io/badge/tested%20on-ubuntu%20%7C%20windows-blue)](.github/workflows/ci.yml)
+
 **在破坏性命令执行之前，判定它在 Windows 上的真实爆炸半径。**
 
 ![demo](docs/demo.svg)
