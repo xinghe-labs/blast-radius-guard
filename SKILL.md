@@ -9,6 +9,20 @@ description: Use before running ANY destructive file operation (rm -rf, rd /s /q
 而是**Windows 上删除命令的真实语义和 agent 写出来的命令文本经常不是一回事**。
 每一条规则下面都埋着一次真实的数据销毁事故。
 
+## 它怎么被调用（三层）
+
+| 层 | 机制 | 可靠性 |
+|---|---|---|
+| ① 手动 CLI | 直接跑 `scripts/guard.py command ...` | 100%，但要自己记得 |
+| ② 本 skill | agent 读到本文件后，删除前自觉跑判定器 | 高，但依赖模型自觉 |
+| ③ 硬拦截 | 宿主 hook / 扩展在命令**执行前**强制判定 | **100%，不依赖自觉（推荐）** |
+
+安装硬拦截层：
+
+- **pi**：把本仓库目录加入 pi 的 extensions（`package.json` 已含 `pi.extensions` 指向 `src/extension.ts`），扩展自动拦截 bash/powershell 删除命令，block 级直接拒绝并把改写建议回给模型
+- **Claude Code**：把 `hooks/pretooluse.py` 挂进 `PreToolUse`（见该文件头部注释）
+- **Codex**：无 hook 机制，只有 ② 层
+
 ## 铁律（先于一切分析）
 
 1. **不把计算出的路径管道进 `cmd /c`。** 用 PowerShell 原生命令做文件操作

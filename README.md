@@ -4,6 +4,28 @@
 
 一个 [Agent Skill](https://agentskills.io)：任何 agent（Claude Code / Codex / Cursor / pi）在跑 `rm -rf`、`rd /s /q`、`Remove-Item -Recurse -Force` 之前，先过一遍判定器，拿到 `allow / warn / block` 和带事故编号的理由。
 
+## 调用方式：三层
+
+**③ 硬拦截（推荐，装完就和）**
+
+- pi：安装本包后，`src/extension.ts` 拦截所有 bash/powershell 删除命令，block 级在执行前拒绝，改写建议直接回给模型
+- Claude Code：`hooks/pretooluse.py` 挂进 `PreToolUse`，exit 2 硬拦截
+- fail-open 设计：guard.py 缺失/超时一律放行——安全工具因为误拦被用户禁用，比偶尔漏拦更糟
+
+**② 软自动（装 skill 即得）**
+
+agent 读到 SKILL.md 的 description 后，删除前自觉跑判定器。对携带 hook 机制的宿主，这只是后备。
+
+**① 手动 CLI**
+
+```powershell
+python scripts\guard.py command 'rd /s /q "D:\★有些目录 with space"'
+python scripts\guard.py path "D:\old-outputs"
+python scripts\guard.py command "rm -rf /mnt/d/data" --json
+```
+
+退出码：`0` = allow，`1` = warn（需人工确认），`2` = block（拒绝执行）。
+
 ## 为什么是这个方向
 
 2025-2026 年，AI agent 在 Windows 上静默销毁用户数据的公开事故记录已经成了一类：
