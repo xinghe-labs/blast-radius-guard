@@ -27,14 +27,43 @@ function guardScript(): string | null {
 	return existsSync(p) ? p : null;
 }
 
+/**
+ * Windows 原生通常只有 `python`（`python3` 常是 Microsoft Store 假别名桩），
+ * WSL/Linux/macOS 通常是 `python3`。按序探测第一个可用的；
+ * 环境变量 WDG_PYTHON 可覆盖。
+ */
+let pythonResolved: string[] | null | undefined;
+async function resolvePython(): Promise<string[] | null> {
+	if (process.env.WDG_PYTHON) return [process.env.WDG_PYTHON];
+	if (pythonResolved !== undefined) return pythonResolved;
+	pythonResolved = null;
+	for (const cmd of ["python3", "python", "py"]) {
+		const candidate = cmd === "py" ? [cmd, "-3"] : [cmd];
+		if (await probe(candidate)) {
+			pythonResolved = candidate;
+			break;
+		}
+	}
+	return pythonResolved;
+}
+
+function probe(cmd: string[]): Promise<boolean> {
+	return new Promise((resolve) => {
+		execFile(cmd[0], cmd.slice(1).concat(["-c", "pass"]), { timeout: 3_000 }, (err) => {
+			resolve(!err);
+		});
+	});
+}
+
 function runGuard(
+	python: string[],
 	script: string,
 	command: string,
 ): Promise<{ verdict: string; text: string } | null> {
 	return new Promise((resolve) => {
 		execFile(
-			"python3",
-			[script, "command", command, "--json"],
+			python[0],
+			python.slice(1).concat([script, "command", command, "--json"]),
 			{ timeout: GUARD_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
 			(err, stdout) => {
 				if (err && !stdout) {
@@ -69,12 +98,15 @@ export default function (pi: ExtensionAPI) {
 		const command = typeof input?.command === "string" ? input.command : undefined;
 		if (!command || !command.trim()) return undefined;
 
-		// 快速预筛：不含删除/移动动词时不启动子进程（省掉 ~50ms）
+		// 快速预筛：不含删除/移动动词时不启动子进程（省掉 python 探测和 ~50ms）
 		if (!/\b(rm|rmdir|del|erase|rd|unlink|shred|remove-item|ri|move-item|move|mv)\b/i.test(command)) {
 			return undefined;
 		}
 
-		const result = await runGuard(script, command);
+		const python = await resolvePython();
+		if (!python) return undefined; // fail-open：环境里没有可用 Python
+
+		const result = await runGuard(python, script, command);
 		if (!result) return undefined;
 
 		if (result.verdict === "block") {

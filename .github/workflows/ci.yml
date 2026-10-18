@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows runner = 真机验证 H3（大小写碰撞）与 H4（NTFS reparse 属性）
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run unit tests
+        run: python -m unittest discover tests -v
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install peer deps
+        run: npm install --no-save @earendil-works/pi-coding-agent typescript
+      - name: tsc --strict
+        run: >
+          npx tsc --noEmit --strict --module nodenext --moduleResolution nodenext
+          --target es2022 --skipLibCheck src/extension.ts
+
+  hook-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Hook blocks drive-root delete
+        shell: bash
+        run: |
+          echo '{"tool_name":"Bash","tool_input":{"command":"rd /s /q D:\\\\"}}' | python3 hooks/pretooluse.py && \
+          echo "ERROR: hook should have blocked" && exit 1 || [ $? -eq 2 ]
+      - name: Hook allows git status
+        shell: bash
+        run: |
+          echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | python3 hooks/pretooluse.py
