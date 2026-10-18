@@ -2,7 +2,9 @@
 
 **在破坏性命令执行之前，判定它在 Windows 上的真实爆炸半径。**
 
-一个 [Agent Skill](https://agentskills.io)：任何 agent（Claude Code / Codex / Cursor / pi）在跑 `rm -rf`、`rd /s /q`、`Remove-Item -Recurse -Force` 之前，先过一遍判定器，拿到 `allow / warn / block` 和带事故编号的理由。
+![demo](docs/demo.svg)
+
+一个 [Agent Skill](https://agentskills.io)：任何 agent（Claude Code / Codex / Cursor / pi）在跑 `rm -rf`、`rd /s /q`、`Remove-Item -Recurse -Force` 之前，先过一遍判定器，拿到 `allow / warn / block` 和带事故编号的理由。已经在真实 pi 会话里完成过端到端验证：模型发出的删除命令被扩展拦截，改写建议原样回到模型。
 
 ## 调用方式：三层
 
@@ -102,13 +104,17 @@ python -m unittest discover tests -v
 
 ## 真机边界（诚实清单）
 
-本项目在 **WSL2 (Linux) 宿主** 上开发和测试。以下判定在真实 Windows 上**逻辑正确但未经真机验证**，代码里已按要求声明 unknown：
+以下项已由 CI 的 `windows-latest` runner 或真机 E2E 覆盖：
 
-- H3 的大小写碰撞（`case_collision` 只在 `os.name == "nt"` 时激活）
-- H4 的 NTFS reparse 属性读取（`st_file_attributes`）
-- PowerShell `-LiteralPath` 对 CJK 的行为
+- [x] 单元测试（含 H3/H4 断言）在 ubuntu + windows 两个 runner 上跑
+- [x] pi 扩展端到端：加载 → tool_call 拦截 → block 理由回传模型（-e + 真实会话）
+- [x] PreToolUse hook stdin 协议（4 场景）
 
-Plan：拿到一台干净 Windows 后跑 `tests/incidents/` 里的真机回归（待补）。
+仍未覆盖、需要真实使用才能验证的：
+
+- 判定器的迷你解析器与真实 cmd/PowerShell 解析在诡异转义交界处的分歧（策略是 fail-safe：看不懂就 block，代价是可能拦住安全的怪命令）——需真实使用逐步调优
+- 误报/漏报率：0 真实用户，规则集未经实战
+- Codex 无 hook 机制，只有 skill 层（宿主限制）
 
 ## License
 

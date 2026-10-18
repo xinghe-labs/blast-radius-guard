@@ -200,6 +200,31 @@ class AllowPathTests(unittest.TestCase):
         result = guard.judge_command("cat D:\\data\\report.txt")
         self.assertEqual(result["verdict"], "allow")
 
+    def test_echo_containing_delete_word_not_block(self):
+        # 文本里有 rm 但实际是 echo —— 不应拦截
+        result = guard.judge_command('echo "remember to rm -rf build later"')
+        self.assertNotEqual(result["verdict"], "block")
+
+    def test_git_rm_narrow_target_not_block(self):
+        result = guard.judge_command("git rm old.txt")
+        self.assertNotEqual(result["verdict"], "block")
+
+    def test_npm_rm_not_block(self):
+        result = guard.judge_command("npm rm left-pad")
+        self.assertNotEqual(result["verdict"], "block")
+
+    def test_find_delete_not_misread(self):
+        # find 的 -delete 不是 shell 删除动词；不应被 H 系规则拦截
+        result = guard.judge_command("find /tmp/x -name '*.log' -delete")
+        self.assertNotEqual(result["verdict"], "block")
+
+    def test_single_layer_quoted_cjk_no_h1(self):
+        # 单层 shell + 引号 + CJK：H5 warn 是合理的，但不应夸大到 H1
+        result = guard.judge_command('rm -rf "/tmp/测试目录"')
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H1_QUOTE_CHAIN", codes)
+        self.assertNotEqual(result["verdict"], "block")
+
 
 if __name__ == "__main__":
     unittest.main()
