@@ -12,7 +12,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-import guard  # noqa: E402
 import delete_guard.core as core_mod  # noqa: E402
 from delete_guard.rules import (  # noqa: E402
     RULES_COMMON,
@@ -21,6 +20,8 @@ from delete_guard.rules import (  # noqa: E402
     RULES_WINDOWS,
 )
 from unittest.mock import patch  # noqa: E402
+
+import guard  # noqa: E402
 
 
 class TokenizeTests(unittest.TestCase):
@@ -543,3 +544,78 @@ class NullByteTests(unittest.TestCase):
     def test_normal_commands_unaffected(self):
         self.assertEqual(guard.judge_command("git status")["verdict"], "allow")
         self.assertEqual(guard.judge_command("sudo rm -rf /usr")["verdict"], "block")
+
+
+class FindDeleteTests(unittest.TestCase):
+    """find <path> -delete 纳入判定（此前靠文档纪律兜底）。"""
+
+    def test_find_delete_warns(self):
+        result = guard.judge_command('find /data -name "*.log" -delete')
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_find_without_delete_allows(self):
+        # -print/-ls 等无破坏语义的 find 完全放行
+        result = guard.judge_command('find /data -name "*.log" -print')
+        self.assertEqual(result["verdict"], "allow")
+
+    def test_predicate_glob_not_a_target(self):
+        # -name 的参数是谓词值不是删除目标：glob 预判不应把它当无前缀目标
+        result = guard.judge_command('find /data -name "*.log" -delete')
+        details = " ".join(h["detail"] for h in result["hazards"])
+        self.assertNotIn("无可确定前缀", details)
+
+    def test_sudo_find_delete_blocks(self):
+        result = guard.judge_command("sudo find /data -delete")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H10_SUDO_DELETE", codes)
+        self.assertEqual(result["verdict"], "block")
+
+    def test_find_cwd_is_ancestor_block(self):
+        result = guard.judge_command("find . -name '*.tmp' -delete")
+        self.assertEqual(result["verdict"], "block")
+
+
+class GitSubcommandTests(unittest.TestCase):
+    """git 子命令判定（clean -f / worktree remove）。"""
+
+    def test_git_clean_fd_warns(self):
+        result = guard.judge_command("git clean -fd")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_git_clean_n_allows(self):
+        # dry-run 无害
+        self.assertEqual(guard.judge_command("git clean -n")["verdict"], "allow")
+        # -n 与 -f 同在：dry-run 优先
+        self.assertEqual(guard.judge_command("git clean -fdn")["verdict"], "allow")
+
+    def test_git_other_subcommands_allow(self):
+        for cmd in ("git status", "git log", "git diff", "git clean"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(guard.judge_command(cmd)["verdict"], "allow")
+
+    def test_git_worktree_remove_warns(self):
+        result = guard.judge_command("git worktree remove ../wt")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+
+
+class VarDetectionNarrowingTests(unittest.TestCase):
+    """$/​% 检测收窄：合法美元符目录名不再误伤。"""
+
+    def test_dollar_ending_dirname_allows(self):
+        self.assertEqual(
+            guard.judge_command('rm -rf "/data/tmp$/x/*"')["verdict"], "warn"
+        )
+        self.assertEqual(
+            guard.judge_command("rm -rf /data/cache$")["verdict"], "warn"
+        )
+
+    def test_real_var_still_blocks(self):
+        for cmd in ("rm -rf $HOME/build", "rm -rf ${BUILD}/x",
+                    "rd /s /q %TEMP%\\x", 'rm -rf "$UNSET/"*'):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(guard.judge_command(cmd)["verdict"], "block")

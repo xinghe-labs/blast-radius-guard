@@ -9,7 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `hooks/pretooluse.py`: resolve Python instead of hardcoding python3 —
+- `find <path> -delete` and git subcommands (`clean -f`, `worktree remove`)
+  are now judged natively instead of relying on skill-layer discipline:
+  - `find ... -delete` maps to a destructive intent (recursive+force);
+    `-name`/`-path` predicate arguments are not treated as targets;
+    `find` without `-delete` is untouched.
+  - `git clean -f` variants warn (H9); `-n` (dry-run), alone or combined,
+    allows. Other git subcommands unaffected.
+  - `git worktree remove` warns (H9) — the H4 incident prototype.
+  - `sudo find ... -delete` blocks (H10).
+- Unexpanded-variable detection narrowed to real variable shapes
+  ($VAR / ${VAR} / %VAR%): literal `$` in directory names (e.g. tmp$)
+  no longer false-positives.
+- package.json files now includes pyrightconfig.json for editor lint.
+
+### Fixed
+
+- NUL byte in a command crashed the judge chain instead of hardcoding python3 —
   probe order BRG_PYTHON env > python3 > python > py -3 (mirrors
   extension.ts), cached once, fail-open when none found.
 - `is_flag_token` takes the cmd-verb context as a parameter instead of a

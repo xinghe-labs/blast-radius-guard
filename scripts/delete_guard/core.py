@@ -25,6 +25,7 @@ from .paths import (
     SHELL_LAUNCHERS,
     _CMD_FLAG_RE,
     _REPARSE_ATTR,
+    _SHELL_VAR_RE,
     has_cjk,
     human_bytes,
     is_ancestor_of_cwd,
@@ -308,6 +309,64 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
                 is_move = True
                 break
 
+    recursive = False
+    force = False
+
+    # find <path> ... -delete：-delete 是 find 谓词不是 shell 删除动词，
+    # 但语义就是递归删除命中项 —— 有 -delete 才当作删除意图处理。
+    # 目标取 find 之后的路径参数；-name 谓词里的 glob 由 wildcard 捕获。
+    # 无 -delete 的 find（-print/-ls）完全不进入删除判定。
+    if verb is None:
+        find_idx = next(
+            (i for i, t in enumerate(lower)
+             if ntpath.basename(t).removesuffix(".exe") == "find" or t == "find"),
+            -1,
+        )
+        if find_idx >= 0 and "-delete" in lower[find_idx:]:
+            verb = "find"
+            verb_index = find_idx
+            recursive = True
+            force = True
+        elif find_idx >= 0:
+            find_idx = -1  # find 存在但无 -delete：不设动词，flag 循环也跳过其谓词
+
+    # git 子命令：clean -f（强制清未跟踪）与 worktree remove（H4 事故原型）。
+    # verb_index 指向子动词本身，targets 从其后开始，避免把子命令词当路径。
+    if verb is None:
+        git_idx = next(
+            (i for i, t in enumerate(lower)
+             if ntpath.basename(t).removesuffix(".exe") == "git" or t == "git"),
+            -1,
+        )
+        if git_idx >= 0 and len(lower) > git_idx + 1:
+            sub = lower[git_idx + 1]
+            if sub == "clean":
+                rest = lower[git_idx + 2 :]
+                has_force = any(
+                    t in {"-f", "-fd", "-fdx", "-fx", "--force"} or
+                    (t.startswith("-") and not t.startswith("--")
+                     and "f" in set(t.lstrip("-")))
+                    for t in rest
+                )
+                has_dry = any(
+                    t == "-n" or (t.startswith("-") and not t.startswith("--")
+                                  and "n" in set(t.lstrip("-")))
+                    for t in rest
+                )
+                if has_force and not has_dry:
+                    verb = "git clean -f"
+                    verb_index = git_idx + 1
+                    recursive = True
+                    force = True
+                # -n 在场（哪怕同时有 -f）一律视为 dry-run，无害放行；
+                # 显式复位预设位，防止后续 flag 循环误叠加
+            elif sub == "worktree" and len(lower) > git_idx + 2 \
+                    and lower[git_idx + 2] == "remove":
+                verb = "git worktree remove"
+                verb_index = git_idx + 2
+                recursive = True
+                force = True
+
     # cmd 系动词认得多字母 /FLAG（/MIR /E）；POSIX 动词不认
     cmd_verb = verb in {"rd", "del", "robocopy", "xcopy", "move"}
 
@@ -317,8 +376,7 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
         escalated = any(t in PRIVILEGE_ESCALATORS for t in lower[:verb_index])
 
     # 选项拆解：既要认 `-recursive` 这种长选项，也要认 `-rf` 这种合写短选项。
-    recursive = False
-    force = False
+    # （find/git 特化分支已预设 recursive/force，此处循环只做累加。）
     for tok in lower:
         # 工具特定镜像/删除语义（先于通用解析）：
         #   robocopy /MIR —— 镜像复制：目标中源里没有的文件会被删除
@@ -354,9 +412,20 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
     targets: list[str] = []
     wildcard = False
     if verb_index >= 0:
+        # find 的值谓词（-name/-iname/-path 的参数）不是删除目标
+        find_value_predicates = {"-name", "-iname", "-path", "-ipath",
+                                 "-regex", "-iregex", "-newer"}
+        skip_next = False
         for tok in parsed.tokens[verb_index + 1 :]:
             v = tok.value
             if not v:
+                continue
+            if skip_next:
+                skip_next = False
+                continue
+            lv = v.lower()
+            if lv in find_value_predicates:
+                skip_next = True
                 continue
             if is_flag_token(v, cmd_verb):
                 continue
@@ -364,12 +433,17 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
             if any(c in v for c in "*?"):
                 wildcard = True
 
+    # find -delete / git clean -f / git worktree remove 是合成删除意图：
+    # 不在 shell 删除动词表里，但消费端（judge_command）按删除语义处理。
+    destructive = verb in all_delete or verb in {
+        "find", "git clean -f", "git worktree remove",
+    }
     return Intent(
         verb=verb,
         recursive=recursive,
         force=force,
         targets=targets,
-        is_delete=(verb in all_delete),
+        is_delete=destructive,
         is_move=is_move,
         wildcard=wildcard,
         escalated=escalated,
@@ -600,7 +674,11 @@ def judge_command(
                 f"目标含空格/CJK 且带引号：{intent.targets}",
             )
 
-    if not intent.targets and (intent.is_delete or intent.is_move):
+    if (
+        not intent.targets
+        and (intent.is_delete or intent.is_move)
+        and intent.verb != "git clean -f"   # 无路径参数 = 默认当前目录，合法形态
+    ):
         add("H0_AMBIGUOUS", "识别到破坏性动词但未解析出任何目标")
 
     # H10 提权删除：动词前有提权词，或外层继承来的提权语境
@@ -618,6 +696,18 @@ def judge_command(
         wsl_context = is_wsl() or "wsl" in [
             l.lower() for l in parsed.shell_layers
         ]
+
+    # 无目标的合成破坏性动词（git clean -f 默认当前目录）：H9 在循环外补发
+    if (
+        not intent.targets
+        and intent.is_delete
+        and intent.force
+        and intent.recursive
+    ):
+        add(
+            "H9_PERMANENT_DELETE",
+            f"{intent.verb}（默认当前目录）递归强制清理，不进回收站",
+        )
 
     radii: list[BlastRadius] = []
     for target in intent.targets:
@@ -681,7 +771,7 @@ def judge_command(
 
         # 目标含未展开的 shell/cmd 变量：真实路径执行前不可知
         # （Steam 2015：$STEAMROOT 为空，rd 落到上层）
-        if "$" in target or "%" in target:
+        if _SHELL_VAR_RE.search(target):
             add(
                 "H0_AMBIGUOUS",
                 f"目标 {target!r} 含未展开变量，真实路径在执行前不可知",

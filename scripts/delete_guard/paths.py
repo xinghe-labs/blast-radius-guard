@@ -62,6 +62,9 @@ MACOS_HOME_SPECIALS = {
 _CMD_FLAG_LETTERS = "defkqrstyDEFGKQRSTY"
 _CMD_FLAG_RE = re.compile(rf"^/[{_CMD_FLAG_LETTERS}]{{1,2}}$")
 
+# 未展开 shell/cmd 变量形态：$VAR、${VAR}、%VAR%（$/% 后必须有变量名字符）
+_SHELL_VAR_RE = re.compile(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|%[A-Za-z_][A-Za-z0-9_]*%")
+
 _REPARSE_ATTR = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 
@@ -199,9 +202,11 @@ def glob_base_dir(path: str) -> str | None:
     for seg in parts:
         if any(c in seg for c in "*?"):
             break
-        # 段内含 $VAR / %VAR% 展开结果未知（Steam 2015：$STEAMROOT 为空）——
-        # 前缀"看起来确定"实际完全不可知，按无前缀处理。
-        if "$" in seg or "%" in seg:
+        # 段内含未展开变量（$VAR / ${VAR} / %VAR%）时展开结果未知
+        # （Steam 2015：$STEAMROOT 为空）—— 前缀"看起来确定"实际完全
+        # 不可知，按无前缀处理。注意收窄：$/、纯美元符目录名（如 tmp$）
+        # 不构成变量形态，不能误伤。
+        if _SHELL_VAR_RE.search(seg):
             return ""
         base_parts.append(seg)
     base = "/".join(base_parts)

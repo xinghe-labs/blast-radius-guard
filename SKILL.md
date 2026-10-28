@@ -99,12 +99,16 @@ mv -- "/path/bad-old-output" "$q/bad-old-output"
 
 ## 范围外形态（判定器不覆盖，需手动纪律）
 
-- **`find <path> -delete`**：`-delete` 是 find 的谓词不是 shell 删除动词，
-  判定器不拦。删除前先用 `-print` 替换 `-delete` 预览命中清单，
-  确认后再执行——这一步不能省。
-- **`git clean`**：永远先 `-n`（dry-run）看清单（见「什么时候可以直接删」）。
-- **`git worktree remove --force`**：H4 事故的原型形态（穿透嵌套 junction），
-  判定器不解析 git 子命令。删除前先 `git worktree list` 核对目标。
+`find -delete`、`git clean -f`、`git worktree remove` 已纳入判定器
+（0.3 起）；以下是仍需手动纪律的形态：
+
+- **`find` 的 `-exec rm ... \;`**：判定器只认 `-delete` 谓词，
+  `-exec rm` 是任意命令执行，建议先 `-print` 预览。
+- **`git clean` 的交互式路径参数**：`git clean -f <path>` 的路径会被
+  判定，但交互式选择（无路径参数全目录清理）依赖 `-n` 预览纪律。
+- **`git worktree remove` 的嵌套 junction**：判定器给 H9 警告，
+  但 worktree 内的 junction 穿透（H4 事故原型）仍需先
+  `git worktree list` 核对目标。
 
 ## 与宿主安全机制的分工
 
