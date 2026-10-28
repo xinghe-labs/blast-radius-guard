@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- NUL byte in a command crashed the judge chain (os.* raise ValueError)
+  and fell through the hook's fail-open path. The judge now blocks NUL
+  commands explicitly as H0_AMBIGUOUS (no shell can execute them anyway)
+  and the hook rejects them with exit 2 before spawning the judge.
+  Regression tests added (74 total).
 - Audit findings (judge bypasses):
   - `sudo bash -c "rm ..."` / `su -c` / `doas bash -c` were fully allowed —
     privilege verbs now count as a shell layer, and the privileged context

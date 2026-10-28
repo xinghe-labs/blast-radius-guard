@@ -12,8 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from unittest.mock import patch  # noqa: E402
-
+import guard  # noqa: E402
 import delete_guard.core as core_mod  # noqa: E402
 from delete_guard.rules import (  # noqa: E402
     RULES_COMMON,
@@ -21,8 +20,7 @@ from delete_guard.rules import (  # noqa: E402
     RULES_MACOS,
     RULES_WINDOWS,
 )
-
-import guard  # noqa: E402
+from unittest.mock import patch  # noqa: E402
 
 
 class TokenizeTests(unittest.TestCase):
@@ -527,3 +525,21 @@ class MirrorVerbTests(unittest.TestCase):
     def test_robocopy_e_allows(self):
         result = guard.judge_command("robocopy Q:\\a Q:\\b /E")
         self.assertEqual(result["verdict"], "allow")
+
+
+class NullByteTests(unittest.TestCase):
+    """NUL 字节：任何 shell 都无法执行，但会让 os.* 崩溃走 fail-open。
+    判定层必须显式 block（fail-closed），hook 层同步拒绝。"""
+
+    def test_core_blocks_nul(self):
+        result = guard.judge_command("rm -rf /\x00bad")
+        self.assertEqual(result["verdict"], "block")
+        self.assertIn("H0_AMBIGUOUS", [h["code"] for h in result["hazards"]])
+
+    def test_core_survives_nul_in_json(self):
+        # JSON 序列化不崩
+        json.dumps(guard.judge_command("rm -rf /\x00bad"), ensure_ascii=False)
+
+    def test_normal_commands_unaffected(self):
+        self.assertEqual(guard.judge_command("git status")["verdict"], "allow")
+        self.assertEqual(guard.judge_command("sudo rm -rf /usr")["verdict"], "block")

@@ -63,7 +63,7 @@ def resolve_python() -> list[str] | None:
             if probe.returncode == 0:
                 _PY_CACHE = candidate
                 return _PY_CACHE
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError, ValueError):
             continue
     _PY_CACHE = []
     return None
@@ -94,6 +94,15 @@ def main() -> int:
     if not isinstance(command, str) or not command.strip():
         return 0
 
+    if "\x00" in command:
+        # NUL 无法被 shell 执行，但会让 subprocess/os 崩溃走 fail-open。
+        # 判定层对此返回 block，这里同步拒绝（exit 2）。
+        print(
+            "delete-guard 拦截：命令含 NUL 字节，无法被任何 shell 无歧义执行。",
+            file=sys.stderr,
+        )
+        return 2
+
     low = command.lower()
     if not any(tok in low for tok in QUICK_PREDICATE):
         return 0
@@ -110,7 +119,7 @@ def main() -> int:
             py + [str(gp), "command", command, "--json"],
             capture_output=True, text=True, timeout=GUARD_TIMEOUT,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError, ValueError):
         return 0  # fail-open
 
     if proc.returncode != 2:

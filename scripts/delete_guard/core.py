@@ -523,6 +523,19 @@ def judge_command(
     privileged_context：外层是否带提权（sudo/su/doas）。跨层时必须继承：
     `sudo bash -c "rm ..."` 的内层没有 sudo 字样，但删除就是以 root 跑的。
     """
+    if "\x00" in command:
+        # NUL 字节无法被任何 shell 执行，但能让下游 os.* 抛
+        # ValueError(embedded null byte) 使判定链崩溃 —— hook/扩展层
+        # fail-open 放行。显式拒绝而不是崩溃（fail-closed 的正确形态）。
+        return _result(
+            [Hazard(
+                code="H0_AMBIGUOUS",
+                severity="block",
+                why="命令含 NUL 字节，无法被任何 shell 无歧义执行",
+                evidence="posix/execve NUL semantics",
+            )],
+            [], [],
+        )
     cwd = cwd or os.getcwd()
     parsed = tokenize(command)
     hazards: list[Hazard] = []
