@@ -513,7 +513,7 @@ class MirrorVerbTests(unittest.TestCase):
         result = guard.judge_command("robocopy D:\\a D:\\b /MIR")
         if os.name == "nt" and result["verdict"] != "warn":
             import json as _json
-            print("WDG-DEBUG /MIR:", _json.dumps(result, ensure_ascii=False))
+            print("WDG-DEBUG /MIR:", _json.dumps(result, ensure_ascii=True))
         codes = [h["code"] for h in result["hazards"]]
         self.assertIn("H9_PERMANENT_DELETE", codes)
         self.assertEqual(result["verdict"], "warn")
@@ -531,5 +531,5 @@ class MirrorVerbTests(unittest.TestCase):
         result = guard.judge_command("robocopy D:\\a D:\\b /E")
         if os.name == "nt" and result["verdict"] != "allow":
             import json as _json
-            print("WDG-DEBUG /E:", _json.dumps(result, ensure_ascii=False))
+            print("WDG-DEBUG /E:", _json.dumps(result, ensure_ascii=True))
         self.assertEqual(result["verdict"], "allow")
