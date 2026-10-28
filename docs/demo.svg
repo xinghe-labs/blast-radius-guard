@@ -1,37 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" height="520" viewBox="0 0 860 520" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace">
-  <rect width="860" height="520" rx="10" fill="#101418"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="760" viewBox="0 0 860 760" font-family="ui-monospace, 'Cascadia Mono', Consolas, monospace">
+  <rect width="860" height="760" rx="10" fill="#101418"/>
   <rect width="860" height="36" rx="10" fill="#1a2026"/>
   <circle cx="20" cy="18" r="6" fill="#ff5f57"/>
   <circle cx="40" cy="18" r="6" fill="#febc2e"/>
   <circle cx="60" cy="18" r="6" fill="#28c840"/>
-  <text x="430" y="23" fill="#8b98a5" font-size="13" text-anchor="middle">pi + blast-radius-guard</text>
+  <text x="430" y="23" fill="#8b98a5" font-size="13" text-anchor="middle">pi + blast-radius-guard · Windows / Linux / macOS</text>
 
-  <text x="24" y="68" fill="#8b98a5" font-size="13"># user asks the agent to clean up a test directory</text>
-  <text x="24" y="90" fill="#c9d1d9" font-size="14">❯ rm -rf /tmp/guard-e2e/project</text>
+  <!-- ===== Windows 样例 ===== -->
+  <text x="24" y="66" fill="#8b98a5" font-size="13"># Windows — quote-chain degradation (cursor incident: entire C:\ wiped)</text>
+  <text x="24" y="88" fill="#c9d1d9" font-size="14">❯ cmd /c "rd /s /q \"D:\★zRC With Claude\worktrees\x\""</text>
 
-  <line x1="24" y1="106" x2="836" y2="106" stroke="#2a323b"/>
+  <text x="24" y="118" fill="#ff7b72" font-size="14" font-weight="bold">✗ BLOCKED — H1_QUOTE_CHAIN · H0_AMBIGUOUS</text>
+  <text x="24" y="138" fill="#8b98a5" font-size="12">    引号经 PowerShell→cmd 层间被重新解释，目标可能退化成卷根</text>
+  <text x="24" y="155" fill="#8b98a5" font-size="12">    依据: claude-code#56603, cursor-forum#163626</text>
 
-  <text x="24" y="132" fill="#ff7b72" font-size="14" font-weight="bold">✗ BLOCKED — command never executed</text>
+  <line x1="24" y1="172" x2="836" y2="172" stroke="#2a323b"/>
 
-  <text x="24" y="162" fill="#c9d1d9" font-size="13">blast-radius-guard 拒绝执行该删除命令：</text>
-  <text x="24" y="184" fill="#79c0ff" font-size="13">  H4_REPARSE_TRAVERSAL</text>
-  <text x="24" y="202" fill="#8b98a5" font-size="12">    子树含 junction/符号链接，递归删除会穿透到链接目标（树外）</text>
-  <text x="24" y="219" fill="#8b98a5" font-size="12">    依据: claude-code v2.1.205 fix, qiita/kai_kou</text>
-  <text x="24" y="241" fill="#d29922" font-size="13">  H9_PERMANENT_DELETE</text>
-  <text x="24" y="259" fill="#8b98a5" font-size="12">    永久删除而非移入隔离区，rm -rf 不进回收站</text>
-  <text x="24" y="276" fill="#8b98a5" font-size="12">    依据: codex#14487, cursor-forum#174156</text>
+  <!-- ===== Linux 样例 ===== -->
+  <text x="24" y="200" fill="#8b98a5" font-size="13"># Linux — the Steam 2015 shape: rm -rf "$STEAMROOT/"* → rm -rf /*</text>
+  <text x="24" y="222" fill="#c9d1d9" font-size="14">❯ sudo rm -rf /usr</text>
 
-  <text x="24" y="306" fill="#c9d1d9" font-size="13">爆炸半径：</text>
-  <text x="24" y="324" fill="#8b98a5" font-size="12">  /tmp/guard-e2e/project  ->  2 文件 / 1 目录，链接 1 个</text>
+  <text x="24" y="252" fill="#ff7b72" font-size="14" font-weight="bold">✗ BLOCKED — H10_SUDO_DELETE · H11_SYSTEM_PREFIX</text>
+  <text x="24" y="272" fill="#8b98a5" font-size="12">    提权删除绕过一切保护；/usr 是包管理器领地</text>
+  <text x="24" y="289" fill="#8b98a5" font-size="12">    依据: macrumors#1176135, steam-for-linux 2015</text>
 
-  <line x1="24" y1="342" x2="836" y2="342" stroke="#2a323b"/>
-  <text x="24" y="368" fill="#c9d1d9" font-size="13">改写建议已回给模型（in the same turn）：</text>
-  <text x="24" y="390" fill="#7ee787" font-size="13">$q = "$env:USERPROFILE\.delete-quarantine\$(Get-Date -Format yyyyMMdd-HHmmss)"</text>
-  <text x="24" y="408" fill="#7ee787" font-size="13">Rename-Item -LiteralPath "D:\bad-dir" -NewName $q\bad-dir   # 先隔离，观察后再删</text>
+  <line x1="24" y1="306" x2="836" y2="306" stroke="#2a323b"/>
 
-  <text x="24" y="438" fill="#8b98a5" font-size="12"># positive control: non-destructive chains pass untouched</text>
-  <text x="24" y="456" fill="#c9d1d9" font-size="13">❯ ls project &amp;&amp; cat project/a.txt &amp;&amp; echo E2E-PASS</text>
-  <text x="24" y="474" fill="#28c840" font-size="13">  E2E-PASS</text>
+  <!-- ===== macOS 样例 ===== -->
+  <text x="24" y="334" fill="#8b98a5" font-size="13"># macOS — home special directories (iCloud / Time Machine chains)</text>
+  <text x="24" y="356" fill="#c9d1d9" font-size="14">❯ rm -rf /Users/alice/Documents</text>
 
-  <text x="24" y="502" fill="#4d5966" font-size="11">each rule cites its public incident · fail-open on missing judge · zero dependencies (Python stdlib)</text>
+  <text x="24" y="386" fill="#ff7b72" font-size="14" font-weight="bold">✗ BLOCKED — H13_MACOS_HOME_SPECIAL</text>
+  <text x="24" y="406" fill="#8b98a5" font-size="12">    删除会破坏 Finder / Time Machine / iCloud / 应用数据链路</text>
+  <text x="24" y="423" fill="#8b98a5" font-size="12">    依据: superuser#1925324, macrumors#1192684</text>
+
+  <line x1="24" y1="440" x2="836" y2="440" stroke="#2a323b"/>
+
+  <!-- ===== 通用输出 ===== -->
+  <text x="24" y="468" fill="#c9d1d9" font-size="13">每次判定都给出爆炸半径，而不是"删除完成"：</text>
+  <text x="24" y="490" fill="#79c0ff" font-size="13">$ python scripts/guard.py command "rm -rf /mnt/d/old-outputs" --json</text>
+  <text x="24" y="512" fill="#8b98a5" font-size="12">{ "verdict": "block",</text>
+  <text x="24" y="529" fill="#8b98a5" font-size="12">  "hazards": [ { "code": "H6_WSL_CROSS_FS", "evidence": "wsl-drvfs" }, ... ],</text>
+  <text x="24" y="546" fill="#8b98a5" font-size="12">  "blast_radius": [ { "files": 1432, "dirs": 87, "bytes_human": "4.2 GB",</text>
+  <text x="24" y="563" fill="#8b98a5" font-size="12">                      "reparse_points": 3 } ] }</text>
+
+  <line x1="24" y1="582" x2="836" y2="582" stroke="#2a323b"/>
+
+  <!-- ===== 改写建议 ===== -->
+  <text x="24" y="610" fill="#c9d1d9" font-size="13">block 理由直接带改写建议，回给模型（in the same turn）：</text>
+  <text x="24" y="632" fill="#7ee787" font-size="13">$q = "$env:USERPROFILE\.delete-quarantine\$(Get-Date -Format yyyyMMdd-HHmmss)"</text>
+  <text x="24" y="650" fill="#7ee787" font-size="13">Rename-Item -LiteralPath "D:\bad-dir" -NewName $q\bad-dir   # 先隔离，观察后再删</text>
+  <text x="24" y="672" fill="#7ee787" font-size="13">q=~/.delete-quarantine/$(date +%Y%m%d-%H%M%S); mkdir -p "$q"; mv -- bad "$q/bad"</text>
+
+  <line x1="24" y1="692" x2="836" y2="692" stroke="#2a323b"/>
+
+  <!-- ===== positive control ===== -->
+  <text x="24" y="720" fill="#8b98a5" font-size="12"># positive control: 日常命令零打扰（过度拦截反例有 71 个测试锁住）</text>
+  <text x="24" y="740" fill="#c9d1d9" font-size="13">❯ rm -rf ./build &amp;&amp; git status &amp;&amp; rsync -a src/ dst/</text>
+  <text x="740" y="740" fill="#28c840" font-size="13" text-anchor="end">✓ pass</text>
 </svg>

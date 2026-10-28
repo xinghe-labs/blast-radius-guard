@@ -1,0 +1,49 @@
+name: 误报 / 漏报反馈
+description: 判定器拦了不该拦的命令（误报），或放行了危险命令（漏报）
+title: "[误报/漏报] "
+labels: ["verdict-feedback"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 类型
+      options:
+        - 误报（被 block，但命令是安全的）
+        - 漏报（被 allow/warn，但命令是危险的）
+        - 严重级不当（warn 应为 block 或反之）
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 完整命令原文
+      description: 逐字粘贴被判定的命令。可以脱敏路径，但请保留引号/空格/变量等结构特征。
+      placeholder: 'sudo rm -rf "$BUILD_DIR/"*'
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - WSL
+    validations:
+      required: true
+  - type: textarea
+    id: json
+    attributes:
+      label: 判定器的 --json 输出
+      description: 运行 `python scripts/guard.py command "<命令>" --json` 的完整输出
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 你认为判定错在哪
+      description: 误报：为什么这条命令实际是安全的；漏报：它真实会删掉什么
+    validations:
+      required: true

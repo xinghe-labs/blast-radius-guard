@@ -12,6 +12,9 @@
           {
             "type": "command",
             "command": "python3 /path/to/blast-radius-guard/hooks/pretooluse.py"
+
+Python 探测顺序：BRG_PYTHON 环境变量 > python3 > python > py -3；
+全部缺失时 fail-open 放行。
           }
         ]
       }
@@ -33,6 +36,37 @@ from pathlib import Path
 
 GUARD_TIMEOUT = 5
 RELEVANT_TOOLS = {"Bash", "PowerShell"}
+
+_PY_CACHE: list[str] | None = None
+
+
+def resolve_python() -> list[str] | None:
+    """按序探测可用的 Python 解释器，返回命令前缀。
+
+    Windows 原生通常只有 `python`（`python3` 常是 Microsoft Store 假别名桩）
+    或 `py -3` 启动器；WSL/Linux/macOS 通常是 `python3`。
+    环境变量 BRG_PYTHON 可强制指定（如 conda 环境）。结果缓存一次。
+    """
+    global _PY_CACHE
+    if _PY_CACHE is not None:
+        return _PY_CACHE or None
+    env = os.environ.get("BRG_PYTHON")
+    if env:
+        _PY_CACHE = [env]
+        return _PY_CACHE
+    for candidate in (["python3"], ["python"], ["py", "-3"]):
+        try:
+            probe = subprocess.run(
+                candidate + ["-c", "pass"],
+                capture_output=True, timeout=3,
+            )
+            if probe.returncode == 0:
+                _PY_CACHE = candidate
+                return _PY_CACHE
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            continue
+    _PY_CACHE = []
+    return None
 QUICK_PREDICATE = (
     "rm ", "rm -", "rmdir", "del ", "erase", "rd ", "unlink", "shred",
     "remove-item", "move-item", " move ", "mv ", "sudo rm", "trash ",
@@ -66,9 +100,12 @@ def main() -> int:
     if gp is None:
         return 0  # fail-open
 
+    py = resolve_python()
+    if py is None:
+        return 0  # fail-open：环境里没有可用 Python
     try:
         proc = subprocess.run(
-            ["python3", str(gp), "command", command, "--json"],
+            py + [str(gp), "command", command, "--json"],
             capture_output=True, text=True, timeout=GUARD_TIMEOUT,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):

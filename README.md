@@ -160,6 +160,17 @@ python -m unittest discover tests -v
   扩展层的 Python 探测在 darwin 上未跑过端到端）
 - Codex 无 hook 机制，只有 skill 层（宿主限制）
 
+## 反馈误报 / 漏报
+
+规则集未经实战，你的真实使用是最有价值的数据源。遇到以下情况请开
+[误报/漏报 issue](https://github.com/xinghe-labs/blast-radius-guard/issues/new?template=false-positive.yml)：
+
+- **误报**：安全的命令被 block（比如正常的清理脚本被拦）
+- **漏报**：危险的命令被 allow/warn
+
+模板会引导你贴出命令原文、OS 和 `--json` 判定输出——这是调规则需要的全部信息。
+每个被确认的规则问题都会在 CHANGELOG 里带事故编号修复，就像已有的 14 条一样。
+
 ## License
 
 MIT
