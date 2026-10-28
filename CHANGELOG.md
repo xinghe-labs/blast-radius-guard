@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Project renamed**: windows-delete-guard → blast-radius-guard. The old
+  `scripts/guard.py` CLI and module API keep working as a compatibility shim
+  (delegates to the new `delete_guard` package); repo URL will move to
+  `xinghe-labs/blast-radius-guard`.
+- Rule engine split into a package, rules per platform:
+  `delete_guard/rules/{common,windows,linux,macos}.py`. Host detection and
+  cross-host `unknowns` declarations centralized in `delete_guard/platform.py`.
+- H3 case-collision now also applies to macOS (APFS/HFS+ case-insensitive),
+  with posixpath-style segment walking on darwin hosts.
+- H6 WSL cross-filesystem warning is now gated on WSL context (host is WSL,
+  or command launched via `wsl`) instead of firing on any `/mnt/...` path
+  on native Linux.
+
+### Added
+
+- H10 sudo/doas/su-escalated deletes (block) — macrumors#1176135, Steam 2015.
+- H11 Linux system-prefix wipes: /usr /etc /bin /home ... (block) —
+  Steam 2015 `rm -rf "$STEAMROOT/"*` degenerating to `rm -rf /*`.
+- H12 mount-point deletion (block) — rsync --delete backup-volume incidents.
+- H13 macOS home special directories: Desktop/Documents/Downloads/Library...
+  (block) — superuser#1925324, macrumors#1192684.
+- Cross-host `unknowns` per platform (Linux/macOS semantics declared when
+  judging from a different host).
+- Extension/hook prescreen now also matches `trash`, `sudo rm`.
+
+### Verified
+
+- Full legacy behavior regression (H0–H9 incidents) passes on the new engine.
+- H12 mount-point verified on a real WSL host against `/mnt/d`.
+- Legacy test suite passes via the `guard.py` shim with zero edits.
+
 ## [0.1.0] - 2026-10-18
 
 ### Added

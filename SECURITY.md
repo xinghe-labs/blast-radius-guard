@@ -7,7 +7,8 @@ security-relevant code, so its own failure modes matter:
 
 ## Design commitments
 
-1. **Fail-open, loudly.** If `guard.py` is missing, times out (5 s), or errors,
+1. **Fail-open, loudly.** If the judge (`scripts/guard.py` / `delete_guard`) is
+   missing, times out (5 s), or errors,
    the hook/extension **allows** the command. We deliberately chose
    "never wedge the user's workflow" over "block on doubt". A guard that bricks
    every command gets uninstalled, and then protects nothing.
@@ -32,7 +33,7 @@ security-relevant code, so its own failure modes matter:
 
 ## Reporting a vulnerability
 
-Open a GitHub issue at `xinghe-labs/windows-delete-guard` describing the
+Open a GitHub issue at `xinghe-labs/blast-radius-guard` describing the
 command shape that was mis-judged (allowed when it should block, or blocked
 when safe). Include: exact command string, OS, and (if possible) the `--json`
 output. Please do not include real paths containing credentials.

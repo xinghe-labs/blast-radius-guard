@@ -4,7 +4,7 @@
   <circle cx="20" cy="18" r="6" fill="#ff5f57"/>
   <circle cx="40" cy="18" r="6" fill="#febc2e"/>
   <circle cx="60" cy="18" r="6" fill="#28c840"/>
-  <text x="430" y="23" fill="#8b98a5" font-size="13" text-anchor="middle">pi + windows-delete-guard</text>
+  <text x="430" y="23" fill="#8b98a5" font-size="13" text-anchor="middle">pi + blast-radius-guard</text>
 
   <text x="24" y="68" fill="#8b98a5" font-size="13"># user asks the agent to clean up a test directory</text>
   <text x="24" y="90" fill="#c9d1d9" font-size="14">❯ rm -rf /tmp/guard-e2e/project</text>
@@ -13,7 +13,7 @@
 
   <text x="24" y="132" fill="#ff7b72" font-size="14" font-weight="bold">✗ BLOCKED — command never executed</text>
 
-  <text x="24" y="162" fill="#c9d1d9" font-size="13">windows-delete-guard 拒绝执行该删除命令：</text>
+  <text x="24" y="162" fill="#c9d1d9" font-size="13">blast-radius-guard 拒绝执行该删除命令：</text>
   <text x="24" y="184" fill="#79c0ff" font-size="13">  H4_REPARSE_TRAVERSAL</text>
   <text x="24" y="202" fill="#8b98a5" font-size="12">    子树含 junction/符号链接，递归删除会穿透到链接目标（树外）</text>
   <text x="24" y="219" fill="#8b98a5" font-size="12">    依据: claude-code v2.1.205 fix, qiita/kai_kou</text>
