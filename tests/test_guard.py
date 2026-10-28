@@ -12,9 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-import delete_guard.core as core_mod  # noqa: E402
 from unittest.mock import patch  # noqa: E402
 
+import delete_guard.core as core_mod  # noqa: E402
 from delete_guard.rules import (  # noqa: E402
     RULES_COMMON,
     RULES_LINUX,
@@ -436,3 +436,94 @@ class WslContextInheritanceTests(unittest.TestCase):
             result = core_mod.judge_command("rm -rf /mnt/x")
             codes = [h["code"] for h in result["hazards"]]
             self.assertNotIn("H6_WSL_CROSS_FS", codes)
+
+
+class PrivilegeLayerTests(unittest.TestCase):
+    """审核发现的漏判：sudo/su/doas 包装的跨层删除（修复 1）。"""
+
+    def test_sudo_bash_c_blocked(self):
+        result = guard.judge_command('sudo bash -c "rm -rf /x"')
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H10_SUDO_DELETE", codes)
+        self.assertEqual(result["verdict"], "block")
+
+    def test_su_c_blocked(self):
+        result = guard.judge_command('su -c "rm -rf /x"')
+        self.assertEqual(result["verdict"], "block")
+
+    def test_doas_bash_c_blocked(self):
+        result = guard.judge_command('doas bash -c "rm -rf /x"')
+        self.assertEqual(result["verdict"], "block")
+
+    def test_sudo_non_delete_still_allows(self):
+        result = guard.judge_command("sudo cat /etc/shadow")
+        self.assertEqual(result["verdict"], "allow")
+
+
+class GlobBlastRadiusTests(unittest.TestCase):
+    """审核发现的漏判：glob 目标的爆炸半径预判（修复 2，Steam 2015 形态）。"""
+
+    def test_root_glob_blocked(self):
+        result = guard.judge_command("rm -rf /*")
+        self.assertEqual(result["verdict"], "block")
+        self.assertIn("H0_AMBIGUOUS", [h["code"] for h in result["hazards"]])
+
+    def test_unset_var_glob_blocked(self):
+        # Steam 2015 事故最终形态：rm -rf "$STEAMROOT/"*
+        result = guard.judge_command('rm -rf "$UNSET/"*')
+        self.assertEqual(result["verdict"], "block")
+
+    def test_system_prefix_glob_blocked(self):
+        result = guard.judge_command("rm -rf /usr/*")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H11_SYSTEM_PREFIX", codes)
+        self.assertEqual(result["verdict"], "block")
+
+    def test_drive_root_glob_blocked(self):
+        result = guard.judge_command("rm -rf C:/*")
+        self.assertEqual(result["verdict"], "block")
+
+    def test_tmp_glob_still_warns(self):
+        # 安全场景不误拦：/tmp 清理保持 warn
+        result = guard.judge_command("rm -rf /tmp/*")
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_var_target_blocked(self):
+        result = guard.judge_command("rd /s /q %UNSET%\\x")
+        self.assertEqual(result["verdict"], "block")
+
+    def test_single_letter_posix_path_not_flag(self):
+        # /x 是合法 POSIX 路径，不能被 cmd flag 正则吃掉
+        result = guard.judge_command("rm -rf /x")
+        self.assertNotEqual(result["verdict"], "block")
+
+    def test_posix_system_paths_not_eaten_by_flag_regex(self):
+        # 回归：/usr /etc 曾被多字母 flag 正则当 flag 剔除导致 H0 误报
+        for target in ("/usr", "/etc", "/boot", "/proc"):
+            with self.subTest(target=target):
+                result = guard.judge_command(f"rm -rf {target}")
+                codes = [h["code"] for h in result["hazards"]]
+                self.assertIn("H11_SYSTEM_PREFIX", codes)
+
+
+class MirrorVerbTests(unittest.TestCase):
+    """审核发现的漏判：robocopy /MIR、rsync --delete（修复 3，H12 事故主角）。"""
+
+    def test_robocopy_mir_warns(self):
+        result = guard.judge_command("robocopy D:\\a D:\\b /MIR")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_rsync_delete_warns(self):
+        result = guard.judge_command("rsync -a --delete /src/ /backup/")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+
+    def test_plain_rsync_allows(self):
+        result = guard.judge_command("rsync -a /src/ /backup/")
+        self.assertEqual(result["verdict"], "allow")
+
+    def test_robocopy_e_allows(self):
+        result = guard.judge_command("robocopy D:\\a D:\\b /E")
+        self.assertEqual(result["verdict"], "allow")

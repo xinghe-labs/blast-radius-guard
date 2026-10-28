@@ -142,7 +142,7 @@ python -m unittest discover tests -v
 以下项已由 CI 的 `ubuntu-latest` / `windows-latest` / `macos-latest` runner
 或真机 E2E 覆盖：
 
-- [x] 单元测试（55 个，含 H3/H4/H11/H12/H13 断言与过度拦截反例）在
+- [x] 单元测试（71 个，含 H3/H4/H11/H12/H13 断言与过度拦截反例）在
   ubuntu + windows + macos 三个 runner 上跑
 - [x] macOS 真机回归（H3 APFS 大小写、H13 家目录特殊目录）——由
   `macos-latest` runner 真机执行，不再是仅静态判定

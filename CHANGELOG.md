@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Audit findings (judge bypasses):
+  - `sudo bash -c "rm ..."` / `su -c` / `doas bash -c` were fully allowed —
+    privilege verbs now count as a shell layer, and the privileged context
+    is inherited by the recursive inner judgment (H10 fires).
+  - `rm -rf /*` and the Steam-2015 form `rm -rf "$UNSET/"*` only warned —
+    glob targets now get a blast-radius pre-check: no determinable prefix
+    or a prefix hitting a volume root / system prefix blocks (H0/H2/H11);
+    `/tmp/*` style cleanups still warn.
+  - Targets containing unexpanded `$VAR` / `%VAR%` now block as H0
+    (path unknowable before execution).
+  - `robocopy /MIR` and `rsync --delete` were fully allowed despite being
+    the H12 incident protagonists — mirror verbs now map to
+    recursive+force and H9 fires with mirror semantics.
+  - `/usr`, `/etc` etc. were briefly eaten by the multi-letter cmd-flag
+    regex; long flags are now scoped to cmd-family verbs only.
+  - Single-letter POSIX paths (`/x`) no longer match the cmd single-flag
+    whitelist (letters restricted to cmd's actual flag set).
+
 ## [0.2.0] - 2026-10-28
 
 ### Changed

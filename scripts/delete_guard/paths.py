@@ -14,10 +14,13 @@ DELETE_VERBS_POSIX = {"rm", "rmdir", "unlink", "shred"}
 
 MOVE_VERBS = {
     "move", "mv", "move-item", "ren", "rename", "rename-item",
-    "xcopy", "robocopy",
+    "xcopy", "robocopy", "rsync",
 }
 
-SHELL_LAUNCHERS = {"cmd", "powershell", "pwsh", "bash", "sh", "wsl", "zsh"}
+# 提权动词也算一层"shell"：`sudo bash -c "rm ..."` / `su -c "..."` 与
+# `cmd /c "..."` 一样是层间跳转，内层目标必须递归判定。
+SHELL_LAUNCHERS = {"cmd", "powershell", "pwsh", "bash", "sh", "wsl", "zsh",
+                   "sudo", "su", "doas"}
 
 # 递归语义的短选项字母：-r / -rf / -Recurse / /s / /e
 RECURSIVE_SHORT = set("rRsSe")
@@ -53,8 +56,11 @@ MACOS_HOME_SPECIALS = {
 }
 
 # cmd 的选项形如 /s /q /f /e /r /t /c /k /d —— 单个或两个字母，且没有后续斜杠。
-# 刻意收紧：/mnt/d 这类挂载路径不会命中。
-_CMD_FLAG_RE = re.compile(r"^/[A-Za-z]{1,2}$")
+# 刻意收紧：/mnt/d、/usr/bin 这类挂载/系统路径不会命中；/x 这类单字母 POSIX
+# 绝对路径也不会命中（x/y 等字母同时是合法目录名，只用两个字母都出现的
+# cmd flag 集合做白名单，而不是任意 A-Za-z）。
+_CMD_FLAG_LETTERS = "defkqrstyDEFGKQRSTY"
+_CMD_FLAG_RE = re.compile(rf"^/[{_CMD_FLAG_LETTERS}]{{1,2}}$")
 
 _REPARSE_ATTR = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
@@ -170,3 +176,36 @@ def human_bytes(n: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
+
+def glob_base_dir(path: str) -> str | None:
+    """返回 glob 目标的「可确定前缀」目录：从最右段开始剥掉通配符所在段。
+
+    `rm -rf "$UNSET/"*` -> base None（没有可确定前缀，爆炸半径未知）
+    `rm -rf /tmp/logs/*.log` -> /tmp/logs（前缀可确定）
+    `rm -rf *.log` -> .（相对路径，无根前缀）
+    非通配目标返回 None（不走本函数）。
+    """
+    p = path.strip().strip("'\"")
+    if not any(c in p for c in "*?"):
+        return None
+    # 用 posix 形态做段拆分（Windows 盘符形态也先统一成斜杠分析）
+    norm = p.replace("\\", "/")
+    if norm.startswith("//"):
+        return None
+    # 找到第一个含通配符的段，其之前的路径就是可确定前缀
+    parts = norm.split("/")
+    base_parts: list[str] = []
+    for seg in parts:
+        if any(c in seg for c in "*?"):
+            break
+        # 段内含 $VAR / %VAR% 展开结果未知（Steam 2015：$STEAMROOT 为空）——
+        # 前缀"看起来确定"实际完全不可知，按无前缀处理。
+        if "$" in seg or "%" in seg:
+            return ""
+        base_parts.append(seg)
+    base = "/".join(base_parts)
+    if not base:
+        # `"$UNSET/"*` 或 `*`：没有可确定前缀 —— 爆炸半径完全未知
+        return ""
+    return base

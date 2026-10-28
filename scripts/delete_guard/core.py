@@ -29,12 +29,19 @@ from .paths import (
     human_bytes,
     is_ancestor_of_cwd,
     is_drive_root,
+    glob_base_dir,
     is_wsl_windows_mount,
     macos_home_special,
     posix_system_prefix,
 )
 from .platform import host_name, is_wsl, unknowns_for_host
 from .rules import RULES, VERDICT_ORDER
+
+# cmd 多字母 flag（/MIR /PURGE /E /S /XD 等）。排除单字母白名单已覆盖的，
+# 避免与 _CMD_FLAG_RE 语义重叠；/mnt、/usr 这类以元音开头的常见目录前缀
+# 仍可能被误收 —— 但 is_flag_token 仅在删除/移动动词之后消费，且误收
+# flag 只是把 flag 从 targets 里排除（不改变爆炸半径），方向是安全的。
+_CMD_LONG_FLAG_RE = re.compile(r"^/[A-Za-z]{1,8}$")
 
 # 大小写不敏感宿主：Windows（NTFS）与 macOS（APFS/HFS+ 默认不敏感）。
 # Linux 通常敏感，但挂载的 Windows/macOS 卷除外 —— 后者声明为 unknown。
@@ -255,6 +262,10 @@ def is_flag_token(v: str) -> bool:
         return True
     if _CMD_FLAG_RE.match(v):
         return True
+    # cmd 多字母 flag（/MIR /E /PURGE）只在 cmd 系动词语境下成立：
+    # POSIX 删除动词的 /usr /etc 是真实路径，绝不能当 flag 剔除。
+    if _CMD_LONG_FLAG_RE.match(v) and is_flag_token.cmd_verb:
+        return True
     return False
 
 
@@ -294,6 +305,9 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
                 is_move = True
                 break
 
+    # cmd 系动词认得多字母 /FLAG（/MIR /E）；POSIX 动词不认
+    is_flag_token.cmd_verb = verb in {"rd", "del", "robocopy", "xcopy", "move"}
+
     # 提权判定（H10）：删除动词之前出现 sudo/doas/su
     escalated = False
     if verb_index > 0:
@@ -303,6 +317,17 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
     recursive = False
     force = False
     for tok in lower:
+        # 工具特定镜像/删除语义（先于通用解析）：
+        #   robocopy /MIR —— 镜像复制：目标中源里没有的文件会被删除
+        #   rsync --delete —— 使目标与源严格一致：多余文件删除
+        if tok in {"/mir", "/mirror"}:
+            recursive = True
+            force = True
+        if tok == "--delete":
+            recursive = True
+            force = True
+        if tok in {"/purge", "--prune-empty-dirs"}:
+            force = True
         if tok in {f.lower() for f in RECURSIVE_LONG}:
             recursive = True
         elif tok in RECURSIVE_LONG:
@@ -483,11 +508,18 @@ def is_mount_point(path: str) -> bool:
 
 
 def judge_command(
-    command: str, cwd: str | None = None, wsl_context: bool | None = None
+    command: str,
+    cwd: str | None = None,
+    wsl_context: bool | None = None,
+    privileged_context: bool | None = None,
 ) -> dict:
     """wsl_context：外层命令是否经由 wsl 启动器进入。递归判定内层命令时
     必须继承（wsl rm -rf /mnt/... 的内层没有 wsl 字样，但语义上就是
-    跨文件系统删除）。None 表示按宿主是否为 WSL 自行判定。"""
+    跨文件系统删除）。None 表示按宿主是否为 WSL 自行判定。
+
+    privileged_context：外层是否带提权（sudo/su/doas）。跨层时必须继承：
+    `sudo bash -c "rm ..."` 的内层没有 sudo 字样，但删除就是以 root 跑的。
+    """
     cwd = cwd or os.getcwd()
     parsed = tokenize(command)
     hazards: list[Hazard] = []
@@ -520,13 +552,22 @@ def judge_command(
                 f"目标带引号且含空格/CJK，经 {' -> '.join(layers)} 跳转时"
                 "参数会在层间被重新解释",
             )
+        lower_layers = [l.lower() for l in layers]
         inner_wsl = (
             wsl_context
             if wsl_context is not None
-            else any(l.lower() == "wsl" for l in layers)
+            else "wsl" in lower_layers
+        )
+        inner_priv = (
+            privileged_context
+            if privileged_context is not None
+            else any(l in PRIVILEGE_ESCALATORS for l in lower_layers)
         )
         return _merge_inner(
-            hazards, unknowns, judge_command(inner_text, cwd, inner_wsl), layers
+            hazards,
+            unknowns,
+            judge_command(inner_text, cwd, inner_wsl, inner_priv),
+            layers,
         )
 
     intent = extract_intent(parsed)
@@ -546,8 +587,10 @@ def judge_command(
     if not intent.targets and (intent.is_delete or intent.is_move):
         add("H0_AMBIGUOUS", "识别到破坏性动词但未解析出任何目标")
 
-    # H10 提权删除
-    if intent.escalated and (intent.is_delete or intent.is_move):
+    # H10 提权删除：动词前有提权词，或外层继承来的提权语境
+    if privileged_context is None:
+        privileged_context = intent.escalated
+    if privileged_context and (intent.is_delete or intent.is_move):
         add(
             "H10_SUDO_DELETE",
             f"提权（{intent.verb} 前有 sudo/doas/su）执行 {intent.verb}",
@@ -589,9 +632,44 @@ def judge_command(
 
         if intent.wildcard and intent.recursive:
             add("H8_GLOB_RECURSIVE", f"递归 + 通配符：{target!r}")
+            # glob 爆炸半径预判（Steam 2015：rm -rf "$STEAMROOT/"* -> /*）：
+            # 命中范围在执行前无法静态确定，必须按前缀可确定性分档。
+            base = glob_base_dir(target)
+            if base is None:
+                pass  # 非通配目标，不适用
+            elif base == "":
+                add(
+                    "H0_AMBIGUOUS",
+                    f"{target!r} 的通配符无可确定前缀（变量可能为空/相对根），"
+                    "展开范围完全未知 —— Steam 2015 事故形态",
+                )
+            else:
+                # 前缀本身命中卷根或系统前缀：展开必然波及
+                if is_drive_root(base):
+                    add("H2_DRIVE_ROOT", f"通配目标 {target!r} 的前缀 {base!r} 是卷根")
+                sysp = posix_system_prefix(base)
+                if sysp:
+                    add("H11_SYSTEM_PREFIX", f"通配目标 {target!r} 的前缀命中 {sysp}")
 
-        if intent.is_delete and intent.force and intent.recursive:
-            add("H9_PERMANENT_DELETE", f"{intent.verb} 递归强制删除，不进回收站")
+        mirror_semantics = intent.verb in {"robocopy", "rsync"} and intent.force
+        if (
+            (intent.is_delete or mirror_semantics)
+            and intent.force
+            and intent.recursive
+        ):
+            add(
+                "H9_PERMANENT_DELETE",
+                f"{intent.verb} {'镜像同步' if mirror_semantics else '递归强制删除'}"
+                "会删除目标侧多余文件，不进回收站",
+            )
+
+        # 目标含未展开的 shell/cmd 变量：真实路径执行前不可知
+        # （Steam 2015：$STEAMROOT 为空，rd 落到上层）
+        if "$" in target or "%" in target:
+            add(
+                "H0_AMBIGUOUS",
+                f"目标 {target!r} 含未展开变量，真实路径在执行前不可知",
+            )
 
         # H11 系统关键前缀（含变量退化形态，如空变量后剩余的 /*）
         sys_prefix = posix_system_prefix(target)
