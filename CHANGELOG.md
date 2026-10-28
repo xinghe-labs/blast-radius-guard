@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `hooks/pretooluse.py`: resolve Python instead of hardcoding python3 —
+  probe order BRG_PYTHON env > python3 > python > py -3 (mirrors
+  extension.ts), cached once, fail-open when none found.
+- `is_flag_token` takes the cmd-verb context as a parameter instead of a
+  function attribute — removes a cross-call race under concurrent judging.
+- Add `.github/ISSUE_TEMPLATE/false-positive.yml` for real-world
+  mis-judgment reports (feeds the 0.3 rule-tuning loop).
+- docs/demo.svg redrawn: one incident per OS + blast-radius JSON.
+- SKILL.md: new "范围外形态" section (find -delete / git clean / git
+  worktree remove need manual discipline); README documents that `path`
+  mode is static-only (H8/H9/H10 not applicable).
+
 ### Fixed
 
 - Audit findings (judge bypasses):

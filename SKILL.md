@@ -97,6 +97,15 @@ mv -- "/path/bad-old-output" "$q/bad-old-output"
 
 这三种之外不要再给自己找"看起来安全"的理由。工具说 block，就 block。
 
+## 范围外形态（判定器不覆盖，需手动纪律）
+
+- **`find <path> -delete`**：`-delete` 是 find 的谓词不是 shell 删除动词，
+  判定器不拦。删除前先用 `-print` 替换 `-delete` 预览命中清单，
+  确认后再执行——这一步不能省。
+- **`git clean`**：永远先 `-n`（dry-run）看清单（见「什么时候可以直接删」）。
+- **`git worktree remove --force`**：H4 事故的原型形态（穿透嵌套 junction），
+  判定器不解析 git 子命令。删除前先 `git worktree list` 核对目标。
+
 ## 与宿主安全机制的分工
 
 Claude Code 的 permission 系统、Codex 的 sandbox 管的是"这次工具调用能不能跑"；

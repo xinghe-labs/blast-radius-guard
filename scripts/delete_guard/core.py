@@ -250,11 +250,16 @@ def detect_shell_layers(tokens: list[Token]) -> list[str]:
     return layers
 
 
-def is_flag_token(v: str) -> bool:
+def is_flag_token(v: str, cmd_verb: bool = False) -> bool:
     """判断一个 token 是选项而不是路径目标。
 
     这里必须保守：误把路径当选项 → 漏判爆炸半径；误把选项当路径 → 噪声。
     `/mnt/d`、`/usr/bin` 这类不会被判成选项。
+
+    cmd_verb：当前命令的动词是否属于 cmd 系（rd/del/robocopy/xcopy/move）。
+    多字母 cmd flag（/MIR /E /PURGE）只在该语境下成立 —— POSIX 删除动词的
+    /usr /etc 是真实路径，绝不能当 flag 剔除。作为参数显式传递而非函数
+    属性：属性会在并发判定（线程池跑 tool_call）时产生跨调用竞态。
     """
     if v.startswith(("./", "../")):
         return False
@@ -262,9 +267,7 @@ def is_flag_token(v: str) -> bool:
         return True
     if _CMD_FLAG_RE.match(v):
         return True
-    # cmd 多字母 flag（/MIR /E /PURGE）只在 cmd 系动词语境下成立：
-    # POSIX 删除动词的 /usr /etc 是真实路径，绝不能当 flag 剔除。
-    if _CMD_LONG_FLAG_RE.match(v) and is_flag_token.cmd_verb:
+    if _CMD_LONG_FLAG_RE.match(v) and cmd_verb:
         return True
     return False
 
@@ -306,7 +309,7 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
                 break
 
     # cmd 系动词认得多字母 /FLAG（/MIR /E）；POSIX 动词不认
-    is_flag_token.cmd_verb = verb in {"rd", "del", "robocopy", "xcopy", "move"}
+    cmd_verb = verb in {"rd", "del", "robocopy", "xcopy", "move"}
 
     # 提权判定（H10）：删除动词之前出现 sudo/doas/su
     escalated = False
@@ -355,7 +358,7 @@ def extract_intent(parsed: ParsedCommand) -> Intent:
             v = tok.value
             if not v:
                 continue
-            if is_flag_token(v):
+            if is_flag_token(v, cmd_verb):
                 continue
             targets.append(v)
             if any(c in v for c in "*?"):

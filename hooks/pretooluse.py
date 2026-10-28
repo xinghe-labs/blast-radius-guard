@@ -67,10 +67,12 @@ def resolve_python() -> list[str] | None:
             continue
     _PY_CACHE = []
     return None
+# 注：find -delete 形态不在判定范围（见 SKILL.md「范围外形态」），
+# 预筛不含它，避免永不匹配的死条目。
 QUICK_PREDICATE = (
     "rm ", "rm -", "rmdir", "del ", "erase", "rd ", "unlink", "shred",
     "remove-item", "move-item", " move ", "mv ", "sudo rm", "trash ",
-    "rmrf", " find ... -delete",
+    "rmrf",
 )
 
 
