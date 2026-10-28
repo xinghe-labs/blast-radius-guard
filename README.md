@@ -139,19 +139,25 @@ python -m unittest discover tests -v
 
 ## 真机边界（诚实清单）
 
-以下项已由 CI 的 `ubuntu-latest` / `windows-latest` runner 或真机 E2E 覆盖：
+以下项已由 CI 的 `ubuntu-latest` / `windows-latest` / `macos-latest` runner
+或真机 E2E 覆盖：
 
-- [x] 单元测试（含 H3/H4 断言）在 ubuntu + windows 两个 runner 上跑
+- [x] 单元测试（55 个，含 H3/H4/H11/H12/H13 断言与过度拦截反例）在
+  ubuntu + windows + macos 三个 runner 上跑
+- [x] macOS 真机回归（H3 APFS 大小写、H13 家目录特殊目录）——由
+  `macos-latest` runner 真机执行，不再是仅静态判定
 - [x] pi 扩展端到端：加载 → tool_call 拦截 → block 理由回传模型（-e + 真实会话）
 - [x] PreToolUse hook stdin 协议（多场景）
 - [x] H12 挂载点判定在真实 WSL 真机上验证（/mnt/d）
+- [x] CI actions 全部固定到 commit SHA（zizmor 审计无阻塞项）
 
 仍未覆盖、需要真实使用才能验证的：
 
-- macOS 宿主真机回归（H3 APFS 大小写、H13）——目前仅静态判定 + 文档依据
 - 判定器的迷你解析器与真实 cmd/PowerShell/zsh 解析在诡异转义交界处的分歧
   （策略是 fail-safe：看不懂就 block，代价是可能拦住安全的怪命令）——需真实使用逐步调优
 - 误报/漏报率：0 真实用户，规则集未经实战
+- macOS 宿主上的 pi 扩展 / Claude Code hook 实机加载（CI 只覆盖了判定器与测试；
+  扩展层的 Python 探测在 darwin 上未跑过端到端）
 - Codex 无 hook 机制，只有 skill 层（宿主限制）
 
 ## License
