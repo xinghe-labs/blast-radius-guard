@@ -482,7 +482,12 @@ def is_mount_point(path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def judge_command(command: str, cwd: str | None = None) -> dict:
+def judge_command(
+    command: str, cwd: str | None = None, wsl_context: bool | None = None
+) -> dict:
+    """wsl_context：外层命令是否经由 wsl 启动器进入。递归判定内层命令时
+    必须继承（wsl rm -rf /mnt/... 的内层没有 wsl 字样，但语义上就是
+    跨文件系统删除）。None 表示按宿主是否为 WSL 自行判定。"""
     cwd = cwd or os.getcwd()
     parsed = tokenize(command)
     hazards: list[Hazard] = []
@@ -515,8 +520,13 @@ def judge_command(command: str, cwd: str | None = None) -> dict:
                 f"目标带引号且含空格/CJK，经 {' -> '.join(layers)} 跳转时"
                 "参数会在层间被重新解释",
             )
+        inner_wsl = (
+            wsl_context
+            if wsl_context is not None
+            else any(l.lower() == "wsl" for l in layers)
+        )
         return _merge_inner(
-            hazards, unknowns, judge_command(inner_text, cwd), layers
+            hazards, unknowns, judge_command(inner_text, cwd, inner_wsl), layers
         )
 
     intent = extract_intent(parsed)
@@ -545,7 +555,10 @@ def judge_command(command: str, cwd: str | None = None) -> dict:
 
     # H6 只在 WSL 语境下成立：宿主本身是 WSL，或命令经 wsl 启动器跳转。
     # 原生 Linux 上 /mnt 下可能是任意普通挂载，交由 H12 按真实挂载表判定。
-    wsl_context = is_wsl() or "wsl" in [l.lower() for l in parsed.shell_layers]
+    if wsl_context is None:
+        wsl_context = is_wsl() or "wsl" in [
+            l.lower() for l in parsed.shell_layers
+        ]
 
     radii: list[BlastRadius] = []
     for target in intent.targets:

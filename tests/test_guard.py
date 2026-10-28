@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """guard.py 的规则测试。每个规则至少一条正例；关键反例防止过度拦截。"""
 
 from __future__ import annotations
@@ -12,6 +11,16 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+
+import delete_guard.core as core_mod  # noqa: E402
+from unittest.mock import patch  # noqa: E402
+
+from delete_guard.rules import (  # noqa: E402
+    RULES_COMMON,
+    RULES_LINUX,
+    RULES_MACOS,
+    RULES_WINDOWS,
+)
 
 import guard  # noqa: E402
 
@@ -42,10 +51,10 @@ class IntentTests(unittest.TestCase):
         self.assertEqual(intent.targets, ["D:\\data"])
 
     def test_combined_short_flags(self):
-        intent = guard.extract_intent(guard.tokenize("rm -rf /tmp/x"))
+        intent = guard.extract_intent(guard.tokenize("rm -rf /srv/x"))
         self.assertTrue(intent.recursive)
         self.assertTrue(intent.force)
-        self.assertEqual(intent.targets, ["/tmp/x"])
+        self.assertEqual(intent.targets, ["/srv/x"])
 
     def test_wsl_mount_path_is_not_flag(self):
         intent = guard.extract_intent(guard.tokenize("rm -r /mnt/d/data"))
@@ -339,8 +348,6 @@ class WslContextTests(unittest.TestCase):
 
     def test_non_wsl_host_no_h6(self):
         # 模拟原生 Linux 宿主（非 WSL）：/mnt/x 不该打 H6
-        import delete_guard.core as core_mod
-        from unittest.mock import patch
         with patch.object(core_mod, "is_wsl", return_value=False):
             result = core_mod.judge_command("rm -rf /mnt/x")
             codes = [h["code"] for h in result["hazards"]]
@@ -376,9 +383,6 @@ class CaseCollisionMacosTests(unittest.TestCase):
     """
 
     def test_macos_case_insensitive_segment_walk(self):
-        from unittest.mock import patch
-        import delete_guard.core as core_mod
-
         with patch.object(core_mod, "host_name", return_value="macos"):
             # /tmp 是真实存在、全部大写的条目；把它改写成不同大小写形式，
             # 逐级核对应仍解析到真实路径。
@@ -391,9 +395,6 @@ class CaseCollisionMacosTests(unittest.TestCase):
                 pass
 
     def test_linux_host_skips_case_collision(self):
-        from unittest.mock import patch
-        import delete_guard.core as core_mod
-
         with patch.object(core_mod, "host_name", return_value="linux"):
             # 原生 Linux 大小写敏感：不走 H3 核对
             self.assertIsNone(core_mod.case_collision("/Tmp"))
@@ -403,9 +404,6 @@ class RuleSplitTests(unittest.TestCase):
     """规则表按平台拆分，H10–H13 分布正确。"""
 
     def test_rule_partitioning(self):
-        from delete_guard.rules import (
-            RULES_LINUX, RULES_MACOS, RULES_WINDOWS, RULES_COMMON,
-        )
         # H10（sudo）在 common 而非 windows，跨平台放大器
         self.assertIn("H10_SUDO_DELETE", RULES_COMMON)
         # H11/H12 归 Linux，H13 归 macOS，H2–H6 归 Windows
@@ -415,3 +413,26 @@ class RuleSplitTests(unittest.TestCase):
         for code in ("H2_DRIVE_ROOT", "H3_CASE_COLLISION", "H4_REPARSE_TRAVERSAL",
                      "H5_CJK_SILENT_FAIL", "H6_WSL_CROSS_FS"):
             self.assertIn(code, RULES_WINDOWS)
+
+
+class WslContextInheritanceTests(unittest.TestCase):
+    """H6 语境必须跨层继承：`wsl rm ...` 的内层没有 wsl 字样，
+    但非 WSL 宿主上判定它时仍要触发 H6（CI 上首次暴露的回归）。"""
+
+    def test_wsl_launcher_context_inherited(self):
+        with patch.object(core_mod, "is_wsl", return_value=False):
+            result = core_mod.judge_command('wsl rm -rf "/mnt/d/data"')
+            codes = [h["code"] for h in result["hazards"]]
+            self.assertIn("H6_WSL_CROSS_FS", codes)
+
+    def test_nested_launcher_keeps_context(self):
+        with patch.object(core_mod, "is_wsl", return_value=False):
+            result = core_mod.judge_command('wsl bash -c "rm -rf /mnt/d/data"')
+            codes = [h["code"] for h in result["hazards"]]
+            self.assertIn("H6_WSL_CROSS_FS", codes)
+
+    def test_non_wsl_host_plain_mnt_no_h6(self):
+        with patch.object(core_mod, "is_wsl", return_value=False):
+            result = core_mod.judge_command("rm -rf /mnt/x")
+            codes = [h["code"] for h in result["hazards"]]
+            self.assertNotIn("H6_WSL_CROSS_FS", codes)
