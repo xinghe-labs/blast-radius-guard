@@ -6,8 +6,6 @@
 
 **在破坏性命令执行之前，判定它在 Windows / Linux / macOS 上的真实爆炸半径。**
 
-（原名 windows-delete-guard —— 0.2.0 起规则引擎按平台拆分，覆盖三大系统。）
-
 ![demo](docs/demo.svg)
 
 一个 [Agent Skill](https://agentskills.io)：任何 agent（Claude Code / Codex / Cursor / pi）在跑 `rm -rf`、`rd /s /q`、`Remove-Item -Recurse -Force`、`sudo rm` 之前，先过一遍判定器，拿到 `allow / warn / block` 和带事故编号的理由。已经在真实 pi 会话里完成过端到端验证：模型发出的删除命令被扩展拦截，改写建议原样回到模型。
@@ -58,7 +56,8 @@ AI agent 静默销毁用户数据的公开事故记录已经成了一类，横�
 | superuser#1925324 / macrumors#1192684 | macOS | 删 ~/Downloads / 家目录特殊目录 | iCloud/Time Machine/邮件数据链路损坏 |
 
 共同点：**这些命令文本在写作者的直觉里全都是"安全"的**。0.1 只覆盖 Windows；
-0.2 起同一条判定流水线也认得出 Linux 与 macOS 的失败路径。
+0.2 起同一条判定流水线也认得出 Linux 与 macOS 的失败路径；0.3 把
+`find -delete` 与 git 子命令（clean / worktree remove）纳入判定。
 
 ## 项目原则
 
@@ -105,7 +104,7 @@ python scripts/guard.py command "rm -rf /mnt/d/data" --json
 | H2 | 目标是卷根（`D:\`、`/`、`/mnt/d`） | 全平台 | block |
 | H3 | 路径大小写与磁盘实际不一致（NTFS/APFS 不敏感） | Win + macOS | block |
 | H4 | 子树含 junction/符号链接，递归会穿透 | 全平台 | block |
-| H5 | CJK 路径可能静默空输出 | Windows | warn |
+| H5 | CJK 路径可能静默空输出（事故依据为 Windows；判定全平台保守触发） | Windows | warn |
 | H6 | 目标在 `/mnt/` 下且处于 WSL 语境（跨文件系统语义） | WSL | warn |
 | H7 | 目标是当前工作目录的祖先 | 全平台 | block |
 | H8 | 递归+通配符（半径取决于运行时目录内容） | 全平台 | warn |
@@ -115,7 +114,7 @@ python scripts/guard.py command "rm -rf /mnt/d/data" --json
 | H12 | 目标是挂载点（删除作用于整个卷） | Linux/macOS | block |
 | H13 | 目标是 macOS 家目录特殊目录（Documents/Library…） | macOS | block |
 
-## 代码结构（0.2.0 起）
+## 代码结构（0.2 起拆包；0.3 起 find/git 意图在 core.py 内原生解析）
 
 ```
 scripts/
@@ -146,7 +145,7 @@ python -m unittest discover tests -v
 以下项已由 CI 的 `ubuntu-latest` / `windows-latest` / `macos-latest` runner
 或真机 E2E 覆盖：
 
-- [x] 单元测试（71 个，含 H3/H4/H11/H12/H13 断言与过度拦截反例）在
+- [x] 单元测试（85 个，含 H3/H4/H11/H12/H13/find/git 断言与过度拦截反例）在
   ubuntu + windows + macos 三个 runner 上跑
 - [x] macOS 真机回归（H3 APFS 大小写、H13 家目录特殊目录）——由
   `macos-latest` runner 真机执行，不再是仅静态判定
