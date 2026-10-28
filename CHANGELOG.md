@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
 ### Changed
 
 - **Project renamed**: windows-delete-guard → blast-radius-guard. The old
@@ -68,5 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command was blocked with H4 + H9 reasons returned to the model. Positive
   control (`ls && cat && echo`) passed untouched.
 
-[Unreleased]: https://github.com/xinghe-labs/windows-delete-guard/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/0.1.0...v0.2.0
 [0.1.0]: https://github.com/xinghe-labs/windows-delete-guard/releases/tag/0.1.0
