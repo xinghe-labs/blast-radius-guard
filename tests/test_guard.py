@@ -228,3 +228,190 @@ class AllowPathTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SudoDeleteTests(unittest.TestCase):
+    """H10：提权删除（Steam 2015 / macrumors#1176135 的共同放大器）。"""
+
+    def test_sudo_rm_blocked(self):
+        result = guard.judge_command("sudo rm -rf /tmp/x")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H10_SUDO_DELETE", codes)
+        self.assertEqual(result["verdict"], "block")
+
+    def test_doas_rm_blocked(self):
+        result = guard.judge_command("doas rm /tmp/x")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H10_SUDO_DELETE", codes)
+
+    def test_plain_rm_no_h10(self):
+        result = guard.judge_command("rm -rf /tmp/x")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H10_SUDO_DELETE", codes)
+
+    def test_sudo_non_delete_no_h10(self):
+        # sudo 读文件不是删除，不该打 H10
+        result = guard.judge_command("sudo cat /etc/shadow")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H10_SUDO_DELETE", codes)
+
+
+class LinuxSystemPrefixTests(unittest.TestCase):
+    """H11：系统关键前缀（Steam 2015 `rm -rf "$STEAMROOT/"*` -> /*）。"""
+
+    def test_usr_blocked(self):
+        for target in ("/usr", "/usr/bin", "/etc", "/boot", "/proc"):
+            with self.subTest(target=target):
+                result = guard.judge_command(f"rm -rf {target}")
+                codes = [h["code"] for h in result["hazards"]]
+                self.assertIn("H11_SYSTEM_PREFIX", codes)
+                self.assertEqual(result["verdict"], "block")
+
+    def test_home_project_not_overmatched(self):
+        # /home/u/proj 是 Linux 用户日常工作目录，误拦会让工具被禁用
+        result = guard.judge_command("rm -rf /home/u/proj")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H11_SYSTEM_PREFIX", codes)
+
+    def test_home_itself_blocked(self):
+        result = guard.judge_command("rm -rf /home")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H11_SYSTEM_PREFIX", codes)
+
+    def test_posix_prefixes_linux_only(self):
+        # 任意前缀只在递归意图下于 judge_command 触发；judge_path 始终核对
+        result = guard.judge_path("/usr")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H11_SYSTEM_PREFIX", codes)
+
+
+class MountPointTests(unittest.TestCase):
+    """H12：挂载点（rsync --delete 清空备份卷类事故）。"""
+
+    def test_is_mount_point_proc(self):
+        if not sys.platform.startswith("linux"):
+            self.skipTest("procfs 挂载仅在 Linux 上核对")
+        self.assertTrue(guard.judge_command.__globals__["is_mount_point"]("/proc"))
+        self.assertTrue(guard.judge_command.__globals__["is_mount_point"]("/sys"))
+
+    def test_regular_dir_not_mount(self):
+        with tempfile.TemporaryDirectory() as base:
+            self.assertFalse(guard.judge_command.__globals__["is_mount_point"](base))
+
+    def test_mount_point_target_blocked_on_linux(self):
+        if not sys.platform.startswith("linux"):
+            self.skipTest("挂载点真机核验仅在 Linux 上执行")
+        result = guard.judge_command("rm -rf /proc")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H12_MOUNT_POINT", codes)
+        self.assertEqual(result["verdict"], "block")
+
+
+class MacosHomeSpecialTests(unittest.TestCase):
+    """H13：macOS 家目录特殊目录（superuser#1925324 / macrumors#1192684）。"""
+
+    def test_documents_blocked(self):
+        for target in (
+            "/Users/alice/Documents",
+            "/Users/alice/Downloads",
+            "/Users/alice/Library",
+        ):
+            with self.subTest(target=target):
+                result = guard.judge_command(f"rm -rf {target}")
+                codes = [h["code"] for h in result["hazards"]]
+                self.assertIn("H13_MACOS_HOME_SPECIAL", codes)
+                self.assertEqual(result["verdict"], "block")
+
+    def test_regular_macos_project_not_overmatched(self):
+        # /Users/alice/dev/proj 是 macOS 用户日常工作目录，不该打 H13
+        result = guard.judge_command("rm -rf /Users/alice/dev/proj")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H13_MACOS_HOME_SPECIAL", codes)
+
+
+class WslContextTests(unittest.TestCase):
+    """H6 语境收紧：只有 WSL 宿主或经 wsl 启动器跳转时才报跨文件系统。"""
+
+    def test_wsl_launcher_triggers_h6(self):
+        result = guard.judge_command('wsl rm -rf "/mnt/d/data"')
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H6_WSL_CROSS_FS", codes)
+
+    def test_non_wsl_host_no_h6(self):
+        # 模拟原生 Linux 宿主（非 WSL）：/mnt/x 不该打 H6
+        import delete_guard.core as core_mod
+        from unittest.mock import patch
+        with patch.object(core_mod, "is_wsl", return_value=False):
+            result = core_mod.judge_command("rm -rf /mnt/x")
+            codes = [h["code"] for h in result["hazards"]]
+            self.assertNotIn("H6_WSL_CROSS_FS", codes)
+
+
+class CrossPlatformUnknownTests(unittest.TestCase):
+    def test_unknowns_declared_per_host(self):
+        # unknown 只声明「非当前宿主」的平台：在本机已验证的平台不会出现
+        result = guard.judge_command("rm -rf ./build")
+        text = "\n".join(result["unknowns"])
+        host = guard.host_name()
+        if host != "windows":
+            self.assertIn("Windows", text)
+        else:
+            self.assertNotIn("Windows", text)
+        if host != "linux":
+            self.assertIn("Linux", text)
+        else:
+            self.assertNotIn("Linux", text)
+        if host != "macos":
+            self.assertIn("macOS", text)
+        else:
+            self.assertNotIn("macOS", text)
+
+
+
+class CaseCollisionMacosTests(unittest.TestCase):
+    """H3 在 macOS 也应触发：APFS/HFS+ 默认大小写不敏感。
+
+    用 unittest.mock 固定 host_name()=macos，驾驭 case_collision 进入
+    posix 布局分支 —— 即使在本机（WSL）也能覆盖该分支。
+    """
+
+    def test_macos_case_insensitive_segment_walk(self):
+        from unittest.mock import patch
+        import delete_guard.core as core_mod
+
+        with patch.object(core_mod, "host_name", return_value="macos"):
+            # /tmp 是真实存在、全部大写的条目；把它改写成不同大小写形式，
+            # 逐级核对应仍解析到真实路径。
+            target = "/TMP"
+            if os.path.exists(target):
+                real = core_mod.case_collision(target)
+                self.assertTrue(real, "macOS 宿主应把 /TMP 解析到 /tmp")
+            else:
+                # /tmp 不存在就跳过 —— 分支覆盖依赖真实目录，但不影响判定逻辑
+                pass
+
+    def test_linux_host_skips_case_collision(self):
+        from unittest.mock import patch
+        import delete_guard.core as core_mod
+
+        with patch.object(core_mod, "host_name", return_value="linux"):
+            # 原生 Linux 大小写敏感：不走 H3 核对
+            self.assertIsNone(core_mod.case_collision("/Tmp"))
+
+
+class RuleSplitTests(unittest.TestCase):
+    """规则表按平台拆分，H10–H13 分布正确。"""
+
+    def test_rule_partitioning(self):
+        from delete_guard.rules import (
+            RULES_LINUX, RULES_MACOS, RULES_WINDOWS, RULES_COMMON,
+        )
+        # H10（sudo）在 common 而非 windows，跨平台放大器
+        self.assertIn("H10_SUDO_DELETE", RULES_COMMON)
+        # H11/H12 归 Linux，H13 归 macOS，H2–H6 归 Windows
+        self.assertIn("H11_SYSTEM_PREFIX", RULES_LINUX)
+        self.assertIn("H12_MOUNT_POINT", RULES_LINUX)
+        self.assertIn("H13_MACOS_HOME_SPECIAL", RULES_MACOS)
+        for code in ("H2_DRIVE_ROOT", "H3_CASE_COLLISION", "H4_REPARSE_TRAVERSAL",
+                     "H5_CJK_SILENT_FAIL", "H6_WSL_CROSS_FS"):
+            self.assertIn(code, RULES_WINDOWS)

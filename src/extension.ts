@@ -1,7 +1,8 @@
 /**
- * windows-delete-guard pi extension
+ * blast-radius-guard pi extension（原 windows-delete-guard）
  *
- * 在 bash / powershell 工具调用执行之前，把命令交给同仓库的 guard.py 判定：
+ * 在 bash / powershell 工具调用执行之前，把命令交给同仓库的判定器
+ * （scripts/guard.py -> delete_guard 包，Windows / Linux / macOS 通用）：
  *   verdict=block -> { block: true, reason: 带事故编号的理由 + 改写建议 }
  *   verdict=warn  -> 放行（不弹窗、不打断；理由由模型侧的 skill 负责）
  *   verdict=allow -> 放行
@@ -99,7 +100,7 @@ export default function (pi: ExtensionAPI) {
 		if (!command || !command.trim()) return undefined;
 
 		// 快速预筛：不含删除/移动动词时不启动子进程（省掉 python 探测和 ~50ms）
-		if (!/\b(rm|rmdir|del|erase|rd|unlink|shred|remove-item|ri|move-item|move|mv)\b/i.test(command)) {
+		if (!/\b(rm|rmdir|del|erase|rd|unlink|shred|trash|remove-item|ri|move-item|move|mv)\b/i.test(command)) {
 			return undefined;
 		}
 
@@ -123,10 +124,11 @@ export default function (pi: ExtensionAPI) {
 			return {
 				block: true,
 				reason:
-					`windows-delete-guard 拒绝执行该删除命令：${reasons}。` +
-					"先改写成单层 shell、绝对路径（-LiteralPath）的目标；" +
-					"或先 rename 进隔离目录 %USERPROFILE%\\.delete-quarantine\\<date> 观察后再删；" +
-					"不要把算好的路径管道进 cmd /c。完整判定输出已写入扩展日志。",
+					`blast-radius-guard 拒绝执行该删除命令：${reasons}。` +
+					"先改写成单层 shell、绝对路径的目标（Windows 用 -LiteralPath）；" +
+					"或先 rename 进隔离目录（Windows: %USERPROFILE%\\.delete-quarantine\\<date>；" +
+					"POSIX: ~/.delete-quarantine/<date>）观察后再删；" +
+					"不要把算好的路径管道进 cmd /c 或嵌套引号链。完整判定输出已写入扩展日志。",
 			};
 		}
 		return undefined;

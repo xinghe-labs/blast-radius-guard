@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /path/to/windows-delete-guard/hooks/pretooluse.py"
+            "command": "python3 /path/to/blast-radius-guard/hooks/pretooluse.py"
           }
         ]
       }
@@ -34,8 +34,9 @@ from pathlib import Path
 GUARD_TIMEOUT = 5
 RELEVANT_TOOLS = {"Bash", "PowerShell"}
 QUICK_PREDICATE = (
-    "rm", "rmdir", "del", "erase", "rd ", "unlink", "shred",
-    "remove-item", "move-item", " move ", "mv ",
+    "rm ", "rm -", "rmdir", "del ", "erase", "rd ", "unlink", "shred",
+    "remove-item", "move-item", " move ", "mv ", "sudo rm", "trash ",
+    "rmrf", " find ... -delete",
 )
 
 
@@ -85,9 +86,10 @@ def main() -> int:
         reasons = proc.stdout[:400]
 
     print(
-        f"windows-delete-guard 拦截该删除命令：{reasons}。"
-        "改写为单层、绝对路径（-LiteralPath）的目标，或先 rename 进隔离目录再删；"
-        "不要把算好的路径管道进 cmd /c。",
+        f"delete-guard 拦截该删除命令：{reasons}。"
+        "改写为单层 shell、绝对路径的目标（Windows 用 -LiteralPath）；"
+        "或先 rename 进隔离目录观察后再删；"
+        "不要把算好的路径管道进 cmd /c 或嵌套引号链。",
         file=sys.stderr,
     )
     return 2

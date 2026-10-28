@@ -1,0 +1,6 @@
+{
+  "extraPaths": ["./scripts"],
+  "include": ["scripts", "tests", "src"],
+  "exclude": ["**/__pycache__", ".ruff_cache"],
+  "typeCheckingMode": "standard"
+}
