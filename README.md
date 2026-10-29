@@ -177,3 +177,7 @@ python -m unittest discover tests -v
 ## License
 
 MIT
+
+---
+
+本项目积极参与并认可 [LINUX DO 社区](https://linux.do)
