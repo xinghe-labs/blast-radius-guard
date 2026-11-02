@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-02
+
+### Changed
+
+- README: drop rename note; sync facts to 0.3.0 (85 tests, 0.1→0.3
+  evolution, H5 platform-scope note, code-structure versioning).
+- Add LINUX DO community acknowledgement.
+- Add INCIDENTS.md — sustainable incident-collection workbench
+  (verification criteria, candidate lifecycle, monitoring channels)
+  with the first full-network sweep: 6 candidates logged, including
+  the cloud-tooling deletion gap (H14 proposal for 0.4.0).
+
 ## [0.3.0] - 2026-10-28
 
 ### Changed
@@ -127,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command was blocked with H4 + H9 reasons returned to the model. Positive
   control (`ls && cat && echo`) passed untouched.
 
-[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/0.1.0...v0.2.0
 [0.1.0]: https://github.com/xinghe-labs/windows-delete-guard/releases/tag/0.1.0
