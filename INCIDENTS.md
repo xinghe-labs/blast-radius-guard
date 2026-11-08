@@ -27,7 +27,90 @@
 
 ## 候选区
 
-### [候选] 第一轮全网扫描（2026-10-29）
+### [候选] 第二轮全网扫描（2026-11-02）：H14 动词表的事故背书
+
+第一轮发现了"云工具链删除"这个空白；本轮专门为 H14 的每类动词收集事故背书，
+并意外发现了中文社区的大量同类事故。**10/10 实测全部 allow** —— H14 的
+紧迫性比第一轮估计的更高。
+
+#### 7. Docker 卷删除（3 个独立事故，deedglass 称 compose down -v 为"删得最多"）
+- **来源**：
+  - claude-code#14944（2025-12）：agent 自主 `docker volume rm` 删光本地
+    Supabase 数据
+  - claude-code#41357（2026-03）：agent 跑 `docker system prune -af --volumes`
+    "释放磁盘"，删掉**多个无关客户项目**的镜像与卷
+  - deedglass.com 博客（2026-10）：`docker compose down -v` 删 named volumes
+    （本地数据库的数据所在），列为 agent 场景最危险命令
+- **命令形态**：`docker volume rm <v>`、`docker system prune -a --volumes`、
+  `docker compose down -v`、`docker volume prune --all`
+- **根因**：动词是 prune/rm/down，删除语义藏在 flag（-v / --volumes）里
+- **建议动作**：H14 收录；注意 `docker system prune -f`（无 --volumes）是
+  日常清理，AgentTrail 的实现也刻意放行 —— 边界：只有带 --volumes /
+  volume rm / down -v 才 warn
+
+#### 8. Kubernetes 删除（namespace 级联删除无确认）
+- **来源**：
+  - deedglass.com（2026-10）：`kubectl delete namespace prod` 一个工具调用
+    删光 namespace 内一切，无两阶段提交无确认
+  - agenticcontrolplane.com（2026-04）：同样结论
+- **命令形态**：`kubectl delete namespace <n>`、`kubectl delete pvc <v>`
+- **根因**：namespace 是级联删除的天然放大器；社区 RFC（2021）就要求加保护
+- **建议动作**：H14 收录 namespace/pv/pvc 的 delete
+
+#### 9. ORM/迁移工具清库（4 个独立事故，Prisma 官方下场写防护文章）
+- **来源**：
+  - claude-code#26913（2026-02）：`alembic downgrade base` 清掉 21 张表
+  - claude-code#27063（2026-02）：`drizzle-kit push --force` 清空生产库
+  - Prisma 事故（manifold.security AID）：Claude Opus 5 把生产 Supabase 当
+    shadow DB，`prisma migrate reset` 清表
+  - claude-code#74557：agent 调 init_db(drop_existing=True) 删 500GB/6 亿行库
+- **命令形态**：`prisma migrate reset`、`prisma db push --force-reset`、
+  `alembic downgrade base`、`drizzle-kit push --force`
+- **根因**：开发期工具被 agent 用在生产连接串上；Prisma 6.15 甚至内置了
+  agent 检测拦截 —— 工具厂商都承认这是真实威胁面
+- **建议动作**：H14 收录（reset / --force-reset / downgrade base /
+  push --force）
+
+#### 10. SQL 直删（DROP/TRUNCATE）
+- **来源**：prisma.io 官方博客（2026-07）明确指出 "committed DROP TABLE or
+  TRUNCATE can't be undone"
+- **命令形态**：`psql -c "DROP TABLE users"`、`TRUNCATE ... CASCADE`
+- **建议动作**：H14 收录 psql/mysql/sh 的 -c 参数里的 DROP/TRUNCATE 检测
+  （需要解析引号内 SQL —— 与 H1 引号链解析互补）
+
+#### 11.【中文社区】V2EX/L 站四起整盘/整环境删除（第一轮遗漏的富矿）
+- **来源**：
+  - V2EX#1233011（2026-08）：Codex + GPT-5.6 full-access，**C 盘 D 盘全删，
+    两三百 GB 上百万文件**（`wsl.exe bash -lc '...'` 跨层形态）
+  - V2EX#1238217（2026-08）：GLM agent **删掉上上级文件夹**（cwd 祖先的
+    祖先！），8 亿 token 的工作成果丢失
+  - linux.do#2925817（2026-09）：Kimi-code 删光整个开发环境（连 bashrc 都丢）
+  - linux.do#2934749（2026-09）：grok4.7 删光 G 盘；回复指出"删盘问题都
+    出现在 win 的 PowerShell"
+- **根因**：与 H0-H13 大部分同型（PowerShell 引号链、跨层 wsl.exe、
+  祖先目录），但出现了两个值得注意的新特征：
+  a) **上上级目录**（#1238217）—— 现有 H7 只查 cwd 的祖先链，
+     理论可拦 ✓（需加测试用例验证 grandparent）
+  b) **wsl.exe bash -lc 跨层** —— shell_layers 已覆盖 wsl/bash，
+     理论可拦 ✓（需加测试用例验证 -lc 形态）
+- **建议动作**：**加固现有规则**：加 2 个回归测试（祖先的祖先、
+  wsl.exe bash -lc 'rm -rf /'）；中文社区事故作为 README 事故表补充
+  （证明中文用户同样受害，L 站推广有共鸣点）
+
+#### 12. PowerShell 编码错误清空文件（linux.do#2402993 回复）
+- **来源**：linux.do 佬友经历：agent 用 PowerShell 编辑文件，编码错误把
+  未备份文件清空
+- **根因**：与 H5 CJK 静默失败同族（PowerShell 编码/编码转换丢内容），
+  但发生在**写路径**（Set-Content/编辑）而非删除
+- **建议动作**：归入 H15_OVERWRITE 候选的佐证材料（写路径覆盖也是
+  数据销毁形态）；单独不成立规则
+
+#### 第二轮结论
+- H14 动词表的事故背书已齐：docker(3) / k8s(2) / ORM(4) / SQL(1) /
+  云 CLI(第一轮 PocketOS/terraform) —— **每类都有编号可引的事故**
+- 中文社区 4 起事故全部可与现有规则对应，补 2 个回归测试即可
+- `drizzle-kit push --force` / `alembic downgrade base` / `prisma migrate
+  reset` 三条在 Prisma 官方博客里有背书，H14 的 ORM 部分可直接引用
 
 #### 1. 云资源 CLI/API 删除完全在判定范围外（多个独立事故）
 - **日期**：2026-02 ~ 2026-04
