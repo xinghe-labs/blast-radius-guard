@@ -77,7 +77,12 @@ AI agent 静默销毁用户数据的公开事故记录已经成了一类，横�
 ## 安装
 
 ```bash
+# agent skill（推荐，Claude Code / pi / Codex 通用）
 npx skills add xinghe-labs/blast-radius-guard
+
+# npm 包（npm 上的包名：delete-guard-agent）
+npm install -g delete-guard-agent
+python $(npm root -g)/delete-guard-agent/scripts/guard.py command "rm -rf /tmp/x"
 ```
 
 或克隆到任意 agent 的 skill 目录：
