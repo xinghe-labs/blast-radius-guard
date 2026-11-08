@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-02
+
+### Added
+
+- **H14_CLOUD_TOOLING** — destructive verbs of cloud/container/ORM/SQL
+  tooling, the biggest judgment gap found in the incident sweeps:
+  - block: `terraform destroy`, `pulumi destroy`,
+    `kubectl delete namespace/ns`, SQL `DROP TABLE/DATABASE/SCHEMA`
+    and `TRUNCATE` via psql/mysql -c/-e
+  - warn: `docker volume rm`, `docker volume prune --all`,
+    `docker system prune --volumes`, `docker compose down -v`,
+    `prisma migrate reset`, `prisma db push --force-reset`,
+    `alembic downgrade base`, `drizzle-kit push --force`,
+    `railway volume delete`, `aws s3 rb`,
+    `gcloud sql instances delete`, `supabase db reset`
+  - every verb carries a cited incident (AID-2026-0106 PocketOS,
+    claude-code#14944/#41357/#26913/#27063, DataTalks.Club terraform,
+    Prisma blog); over-blocking guardrails verified (prune without
+    --volumes, terraform plan, kubectl get, prisma migrate dev all pass)
+- Chinese-community incident regression tests: grandparent-dir delete
+  (V2EX#1238217), `wsl.exe bash -lc` cross-layer wipe (V2EX#1233011),
+  PowerShell nested-quote wipe (linux.do#2934749).
+- INCIDENTS.md — sustainable incident-collection workbench with two
+  full-network sweeps (12 candidates) documenting the evidence chain
+  for every H14 verb.
+- README incident table: 8 new rows (cloud/container/Chinese community);
+  rule table 14 -> 15 rows; test count 85 -> 101.
+- SKILL.md description: cloud-tooling trigger phrases for agent routing.
+
 ## [0.3.1] - 2026-11-02
 
 ### Changed
@@ -139,7 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command was blocked with H4 + H9 reasons returned to the model. Positive
   control (`ls && cat && echo`) passed untouched.
 
-[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/0.1.0...v0.2.0

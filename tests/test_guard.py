@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -619,3 +620,118 @@ class VarDetectionNarrowingTests(unittest.TestCase):
                     "rd /s /q %TEMP%\\x", 'rm -rf "$UNSET/"*'):
             with self.subTest(cmd=cmd):
                 self.assertEqual(guard.judge_command(cmd)["verdict"], "block")
+
+
+class CloudToolingTests(unittest.TestCase):
+    """H14：云/容器/ORM/SQL 工具的破坏性动词（INCIDENTS.md 候选 7-10）。
+
+    动词表每条都有编号事故背书；日常安全形态（prune 无 --volumes、
+    terraform plan、kubectl get）必须放行。
+    """
+
+    # --- 命中：block 级（官方确认不可逆/级联） ---
+    def test_terraform_destroy_blocks(self):
+        result = guard.judge_command("terraform destroy -auto-approve")
+        self.assertEqual(result["verdict"], "block")
+        self.assertIn("H14_CLOUD_TOOLING", [h["code"] for h in result["hazards"]])
+
+    def test_kubectl_delete_namespace_blocks(self):
+        result = guard.judge_command("kubectl delete namespace prod")
+        self.assertEqual(result["verdict"], "block")
+
+    def test_sql_drop_blocks(self):
+        result = guard.judge_command('psql -c "DROP DATABASE prod"')
+        self.assertEqual(result["verdict"], "block")
+
+    def test_sql_truncate_blocks(self):
+        result = guard.judge_command('mysql -e "TRUNCATE users CASCADE"')
+        self.assertEqual(result["verdict"], "block")
+
+    # --- 命中：warn 级（删持久数据，可能有备份） ---
+    def test_drizzle_push_force_warns(self):
+        result = guard.judge_command("drizzle-kit push --force")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H14_CLOUD_TOOLING", codes)
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_docker_compose_down_v_warns(self):
+        result = guard.judge_command("docker compose down -v")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H14_CLOUD_TOOLING", codes)
+
+    def test_docker_volume_rm_warns(self):
+        result = guard.judge_command("docker volume rm supabase_data")
+        self.assertIn(
+            "H14_CLOUD_TOOLING", [h["code"] for h in result["hazards"]]
+        )
+
+    def test_prisma_migrate_reset_warns(self):
+        result = guard.judge_command("prisma migrate reset")
+        self.assertIn(
+            "H14_CLOUD_TOOLING", [h["code"] for h in result["hazards"]]
+        )
+
+    def test_alembic_downgrade_warns(self):
+        result = guard.judge_command("python -m alembic downgrade base")
+        self.assertIn(
+            "H14_CLOUD_TOOLING", [h["code"] for h in result["hazards"]]
+        )
+
+    def test_railway_volume_delete_warns(self):
+        result = guard.judge_command("railway volume delete vol_123")
+        self.assertIn(
+            "H14_CLOUD_TOOLING", [h["code"] for h in result["hazards"]]
+        )
+
+    # --- 边界：日常安全形态放行（防过度拦截） ---
+    def test_docker_prune_without_volumes_allows(self):
+        # AgentTrail 同款边界：无 --volumes 的 prune 是日常清理
+        for cmd in ("docker system prune -f", "docker image prune",
+                    "docker builder prune"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(guard.judge_command(cmd)["verdict"], "allow")
+
+    def test_readonly_tooling_allows(self):
+        for cmd in ("terraform plan", "terraform state list", "kubectl get pods",
+                    "prisma migrate dev", "docker ps"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(guard.judge_command(cmd)["verdict"], "allow")
+
+    def test_h14_evidence_carries_incident_ids(self):
+        result = guard.judge_command("terraform destroy")
+        h = next(h for h in result["hazards"] if h["code"] == "H14_CLOUD_TOOLING")
+        self.assertIn("AID-2026-0106", h["evidence"])
+
+
+class ChineseIncidentRegressionTests(unittest.TestCase):
+    """中文社区事故形态回归（INCIDENTS.md 候选 11；V2EX/L 站）。
+
+    这些形态理论被 H7/H1/H6 覆盖 —— 固化为测试防止倒退。
+    """
+
+    def test_grandparent_dir_delete_blocks(self):
+        # V2EX#1238217（GLM 删上上级目录）
+        import tempfile
+        base = tempfile.mkdtemp()
+        self.addCleanup(lambda: shutil.rmtree(base, ignore_errors=True))
+        deep = os.path.join(base, "proj", "src", "deep")
+        os.makedirs(deep)
+        result = guard.judge_command(f"rm -rf {base}", cwd=deep)
+        self.assertEqual(result["verdict"], "block")
+        self.assertIn("H7_ANCESTOR_OF_CWD", [h["code"] for h in result["hazards"]])
+
+    def test_wsl_exe_bash_lc_blocks(self):
+        # V2EX#1233011（Codex 删 C/D 盘的跨层形态）
+        result = guard.judge_command('wsl.exe bash -lc "rm -rf /mnt/d/data"')
+        self.assertEqual(result["verdict"], "block")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H1_QUOTE_CHAIN", codes)
+        self.assertIn("H6_WSL_CROSS_FS", codes)
+
+    def test_powershell_nested_quote_wipe_blocks(self):
+        # linux.do#2934749（grok 删 G 盘形态）
+        result = guard.judge_command(
+            'powershell -Command "Remove-Item -Recurse -Force \\"G:\\\\p\\\\*\\""'
+        )
+        self.assertEqual(result["verdict"], "block")
+        self.assertIn("H1_QUOTE_CHAIN", [h["code"] for h in result["hazards"]])

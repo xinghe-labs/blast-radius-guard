@@ -30,6 +30,7 @@ from .paths import (
     human_bytes,
     is_ancestor_of_cwd,
     is_drive_root,
+    cloud_tool_match,
     glob_base_dir,
     is_wsl_windows_mount,
     macos_home_special,
@@ -696,6 +697,29 @@ def judge_command(
         wsl_context = is_wsl() or "wsl" in [
             l.lower() for l in parsed.shell_layers
         ]
+
+    # H14 云/容器/ORM/SQL 工具的破坏性动词（命令级判定）
+    cloud_hit = cloud_tool_match(command)
+    if cloud_hit:
+        shape, evidence = cloud_hit
+        # kubectl delete namespace / terraform destroy / DROP DATABASE：
+        # 官方确认不可逆或级联全删 → block；其余（卷/表级）→ warn
+        block_shapes = (
+            "kubectl delete namespace", "kubectl delete ns",
+            "terraform destroy", "pulumi destroy",
+            "sql drop/truncate",
+        )
+        # 级别：block 形态通过独立 Hazard 覆盖 severity（RULES 表里 H14 默认 warn）
+        detail = (
+            f"{shape!r} 官方确认不可逆/级联删除"
+            if shape in block_shapes
+            else f"{shape!r} 删除持久数据（可能有备份）"
+        )
+        add("H14_CLOUD_TOOLING", detail)
+        if shape in block_shapes:
+            hazards[-1].severity = "block"
+        # 事故依据进 evidence（动态命中形态专属依据与规则表依据合并）
+        hazards[-1].evidence = f"{evidence}"
 
     # 无目标的合成破坏性动词（git clean -f 默认当前目录）：H9 在循环外补发
     if (

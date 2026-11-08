@@ -29,6 +29,16 @@ RULES_COMMON: dict[str, tuple[str, str, str]] = {
         "永久删除而非移入隔离区，删除通常不进回收站/废纸篓",
         "codex#14487, cursor-forum#174156",
     ),
+    # H14：云/容器/ORM/SQL 工具的破坏性动词 —— 动词不在 shell 删除词表里，
+    # 但破坏力等同 rm -rf（PocketOS 9 秒清掉生产库+备份；terraform destroy
+    # 毁掉 2.5 年生产设施）。完整动词表与事故背书见 INCIDENTS.md 候选 7-10。
+    "H14_CLOUD_TOOLING": (
+        "warn",
+        "云/容器/ORM 工具的破坏性动词（delete volume/destroy/migrate reset/"
+        "downgrade/DROP），作用于云资源或持久数据， Shell 删除词表覆盖不到",
+        "AID-2026-0106 (PocketOS), claude-code#26913/#27063/#41357/#14944, "
+        "prisma blog 2026-07",
+    ),
     # H10：sudo 提权 + 删除，爆炸半径受 root 权限放大（Steam 2015、
     # macOS sudo rm -R / .Spotlight-v100 空格笔误等历史事故的共同放大器）
     "H10_SUDO_DELETE": (

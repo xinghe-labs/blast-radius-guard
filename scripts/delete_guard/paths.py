@@ -49,6 +49,50 @@ SYSTEM_PREFIXES = OS_CRITICAL_PREFIXES | USER_DATA_PREFIXES
 # 提权动词（H10）
 PRIVILEGE_ESCALATORS = {"sudo", "doas", "su"}
 
+# ---------------------------------------------------------------------------
+# H14 云/容器/ORM/SQL 工具的破坏性动词（每条动词都有已归档事故背书，
+# 见 INCIDENTS.md 第二轮扫描 7-10 号候选）
+# ---------------------------------------------------------------------------
+
+# (工具, 形态) -> (级别说明)。匹配基于命令文本的小写形态。
+# warn = 删除作用于持久数据但可能有备份；block = 官方明确不可逆或级联全删。
+
+# docker：只有"碰数据卷"的形态才命中；prune 不带 --volumes 是日常清理
+DOCKER_DESTRUCTIVE = {
+    "docker volume rm",            # claude-code#14944 删 Supabase 卷
+    "docker volume prune --all",
+    "docker system prune --volumes",      # claude-code#41357
+    "docker system prune -a --volumes",
+    "docker system prune -af --volumes",
+    "docker compose down -v",      # deedglass：删 named volumes（数据库数据）
+}
+
+# kubernetes：namespace 是级联删除放大器（agenticcontrolplane/deedglass）
+K8S_DESTRUCTIVE = {
+    "kubectl delete namespace",
+    "kubectl delete ns",
+    "kubectl delete pv",
+    "kubectl delete pvc",
+}
+
+# ORM / 迁移工具（Prisma 官方博客承认的威胁面；alembic/drizzle 有编号事故）
+ORM_DESTRUCTIVE = {
+    "prisma migrate reset",             # Supabase 生产清库
+    "prisma db push --force-reset",
+    "alembic downgrade base",           # claude-code#26913 清 21 表
+    "drizzle-kit push --force",         # claude-code#27063 清生产库
+}
+
+# 云 CLI（PocketOS/Terraform 事故）
+CLOUD_CLI_DESTRUCTIVE = {
+    "terraform destroy",                # DataTalks.Club 2.5 年生产设施
+    "pulumi destroy",
+    "railway volume delete",
+    "aws s3 rb",
+    "gcloud sql instances delete",
+    "supabase db reset",
+}
+
 # macOS 家目录特殊目录（H13）：Finder / Time Machine / iCloud / 应用依赖
 MACOS_HOME_SPECIALS = {
     "Desktop", "Documents", "Downloads", "Library",
@@ -179,6 +223,37 @@ def human_bytes(n: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
+
+def _norm_cmd(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def cloud_tool_match(command: str) -> tuple[str, str] | None:
+    """H14：命令是否命中云/容器/ORM 工具的破坏性形态。
+
+    返回 (命中形态, 事故依据摘要)，不命中返回 None。
+    先做直接前缀/包含匹配；SQL 破坏语句经引号内提取二次检测。
+    """
+    norm = _norm_cmd(command)
+    tables = [
+        (DOCKER_DESTRUCTIVE, "claude-code#14944/#41357, deedglass compose-down-v"),
+        (K8S_DESTRUCTIVE, "deedglass kubectl-delete, agenticcontrolplane 2026-04"),
+        (ORM_DESTRUCTIVE, "claude-code#26913/#27063, prisma-agent-wipe 2026"),
+        (CLOUD_CLI_DESTRUCTIVE, "AID-2026-0106 PocketOS, DataTalks.Club terraform"),
+    ]
+    for table, evidence in tables:
+        for shape in table:
+            # 包含式匹配：python -m alembic downgrade base、cd x && terraform
+            # destroy 等前缀形态也要命中（形状本身是多词短语，误配风险低）
+            if shape in norm:
+                return shape, evidence
+    # SQL 破坏语句（psql -c / mysql -e "DROP TABLE ..." 等）：客户端 + 内嵌 SQL
+    # TRUNCATE 的 TABLE 关键字在 MySQL 可省略
+    if re.search(r"\b(drop\s+(table|database|schema)\b|truncate\b)", norm):
+        if re.search(r"\b(psql|mysql|mariadb|sqlite3|sqlcmd)\b", norm):
+            return "sql drop/truncate", "prisma blog 2026-07 (irreversible)"
+    return None
 
 
 def glob_base_dir(path: str) -> str | None:

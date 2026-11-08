@@ -54,10 +54,19 @@ AI agent 静默销毁用户数据的公开事故记录已经成了一类，横�
 | rsync 邮件列表 / 博客多人复述 | Linux | `rsync --delete` 作用于挂载点，误清备份卷 | 备份卷整卷数据消失 |
 | macrumors#1176135 | macOS | `sudo rm -R / .Spotlight-v100` 多打一个空格 | 系统文件被删 |
 | superuser#1925324 / macrumors#1192684 | macOS | 删 ~/Downloads / 家目录特殊目录 | iCloud/Time Machine/邮件数据链路损坏 |
+| PocketOS / Railway（[AID-2026-0106](https://mcscope.github.io/Alignment-Incident-Database/incidents/AID-2026-0106/)、[The Guardian](https://www.theguardian.com/technology/2026/apr/29/claude-ai-deletes-firm-database)） | 云 | agent 删 Railway volume | **9 秒清掉生产库+全部备份**，停机 30 小时 |
+| [claude-code#27063](https://github.com/anthropics/claude-code/issues/27063) | 云 | `drizzle-kit push --force` 清生产 PostgreSQL | 60+ 表全清，不可恢复 |
+| DataTalks.Club（[Tom's Hardware](https://www.tomshardware.com/tech-industry/artificial-intelligence/claude-code-deletes-developers-production-setup-including-its-database-and-snapshots-2-5-years-of-records-were-nuked-in-an-instant)） | 云 | Claude Code 跑 `terraform destroy` | **2.5 年生产设施+快照全毁** |
+| [claude-code#26913](https://github.com/anthropics/claude-code/issues/26913) | 云 | `alembic downgrade base` 清库 | 21 张表全清 |
+| [claude-code#41357](https://github.com/anthropics/claude-code/issues/41357) | 容器 | `docker system prune -af --volumes` | 多个无关客户项目的镜像与卷被删 |
+| [claude-code#14944](https://github.com/anthropics/claude-code/issues/14944) | 容器 | agent 自主 `docker volume rm` | 本地 Supabase 数据全丢 |
+| [V2EX#1233011](https://www.v2ex.com/t/1233011) | Windows | Codex `wsl.exe bash -lc` 跨层删除 | C/D 盘两三百 GB、上百万文件 |
+| [V2EX#1238217](https://www.v2ex.com/t/1238217) | Linux | GLM agent 删上上级目录 | 8 亿 token 的工作成果丢失 |
 
 共同点：**这些命令文本在写作者的直觉里全都是"安全"的**。0.1 只覆盖 Windows；
 0.2 起同一条判定流水线也认得出 Linux 与 macOS 的失败路径；0.3 把
-`find -delete` 与 git 子命令（clean / worktree remove）纳入判定。
+`find -delete` 与 git 子命令（clean / worktree remove）纳入判定；0.4 补上
+最大的空白——云/容器/ORM 工具的破坏性动词（H14）。
 
 ## 项目原则
 
@@ -113,6 +122,7 @@ python scripts/guard.py command "rm -rf /mnt/d/data" --json
 | H11 | 目标是系统关键前缀（/usr /etc /bin /home…） | Linux | block |
 | H12 | 目标是挂载点（删除作用于整个卷） | Linux/macOS | block |
 | H13 | 目标是 macOS 家目录特殊目录（Documents/Library…） | macOS | block |
+| H14 | 云/容器/ORM 工具破坏性动词（terraform destroy、prisma migrate reset、docker 卷删除、kubectl delete namespace、SQL DROP） | 全平台 | warn/block |
 
 ## 代码结构（0.2 起拆包；0.3 起 find/git 意图在 core.py 内原生解析）
 
@@ -145,7 +155,7 @@ python -m unittest discover tests -v
 以下项已由 CI 的 `ubuntu-latest` / `windows-latest` / `macos-latest` runner
 或真机 E2E 覆盖：
 
-- [x] 单元测试（85 个，含 H3/H4/H11/H12/H13/find/git 断言与过度拦截反例）在
+- [x] 单元测试（101 个，含 H3/H4/H11-H14/find/git 断言、中文社区事故回归与过度拦截反例）在
   ubuntu + windows + macos 三个 runner 上跑
 - [x] macOS 真机回归（H3 APFS 大小写、H13 家目录特殊目录）——由
   `macos-latest` runner 真机执行，不再是仅静态判定
@@ -172,7 +182,7 @@ python -m unittest discover tests -v
 - **漏报**：危险的命令被 allow/warn
 
 模板会引导你贴出命令原文、OS 和 `--json` 判定输出——这是调规则需要的全部信息。
-每个被确认的规则问题都会在 CHANGELOG 里带事故编号修复，就像已有的 14 条一样。
+每个被确认的规则问题都会在 CHANGELOG 里带事故编号修复，就像已有的 15 条一样。
 
 ## License
 
