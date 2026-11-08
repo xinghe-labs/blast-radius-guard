@@ -85,6 +85,10 @@ npm install -g delete-guard-agent
 python $(npm root -g)/delete-guard-agent/scripts/guard.py command "rm -rf /tmp/x"
 ```
 
+> npm 包名与本仓库不同名：`blast-radius-guard` 在 npm 上被相似名规则拦截
+> （已有 `blastradius-guard`），故 npm 端使用 `delete-guard-agent`。GitHub /
+> skill 安装 / 文档中的项目名统一为 blast-radius-guard。
+
 或克隆到任意 agent 的 skill 目录：
 
 ```bash
