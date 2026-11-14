@@ -91,6 +91,8 @@ CLOUD_CLI_DESTRUCTIVE = {
     "aws s3 rb",
     "gcloud sql instances delete",
     "supabase db reset",
+    "kiro environment delete",   # AWS Kiro 2025-12：删环境重建致 13h 故障（FT 报道）
+    "neon db sql",               # GPT-5.6 Sol 经 neon CLI TRUNCATE users 表（2026-07）
 }
 
 # macOS 家目录特殊目录（H13）：Finder / Time Machine / iCloud / 应用依赖
@@ -236,6 +238,10 @@ def cloud_tool_match(command: str) -> tuple[str, str] | None:
     先做直接前缀/包含匹配；SQL 破坏语句经引号内提取二次检测。
     """
     norm = _norm_cmd(command)
+    # SQL 破坏语句优先于工具表匹配（TRUNCATE/DROP 的破坏语义精确，block 级）
+    if re.search(r"\b(drop\s+(table|database|schema)\b|truncate\b)", norm):
+        if re.search(r"\b(psql|mysql|mariadb|sqlite3|sqlcmd|neon|supabase)\b|\b(npx|yarn|pnpm)\s+\w+\s+db\b", norm):
+            return "sql drop/truncate", "prisma blog 2026-07, claude-code Neon truncate 2026-07"
     tables = [
         (DOCKER_DESTRUCTIVE, "claude-code#14944/#41357, deedglass compose-down-v"),
         (K8S_DESTRUCTIVE, "deedglass kubectl-delete, agenticcontrolplane 2026-04"),
@@ -248,11 +254,6 @@ def cloud_tool_match(command: str) -> tuple[str, str] | None:
             # destroy 等前缀形态也要命中（形状本身是多词短语，误配风险低）
             if shape in norm:
                 return shape, evidence
-    # SQL 破坏语句（psql -c / mysql -e "DROP TABLE ..." 等）：客户端 + 内嵌 SQL
-    # TRUNCATE 的 TABLE 关键字在 MySQL 可省略
-    if re.search(r"\b(drop\s+(table|database|schema)\b|truncate\b)", norm):
-        if re.search(r"\b(psql|mysql|mariadb|sqlite3|sqlcmd)\b", norm):
-            return "sql drop/truncate", "prisma blog 2026-07 (irreversible)"
     return None
 
 

@@ -109,6 +109,11 @@ mv -- "/path/bad-old-output" "$q/bad-old-output"
 - **`git worktree remove` 的嵌套 junction**：判定器给 H9 警告，
   但 worktree 内的 junction 穿透（H4 事故原型）仍需先
   `git worktree list` 核对目标。
+- **删除逻辑写入脚本再执行**（2026-09 事故：Python 清理脚本经
+  os.walk 穿透 junction 删掉 48,218 个活文件）：判定器只能看见
+  `python cleanup.py <dir>` 这行文本，脚本内部的删除行为不可见。
+  删除操作必须以 shell 直接可见的命令执行（跑判定器），绝不封装进
+  自己编写的脚本；批量删除先输出文件清单（dry-run）人工过目。
 
 ## 与宿主安全机制的分工
 

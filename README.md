@@ -62,6 +62,9 @@ AI agent 静默销毁用户数据的公开事故记录已经成了一类，横�
 | [claude-code#14944](https://github.com/anthropics/claude-code/issues/14944) | 容器 | agent 自主 `docker volume rm` | 本地 Supabase 数据全丢 |
 | [V2EX#1233011](https://www.v2ex.com/t/1233011) | Windows | Codex `wsl.exe bash -lc` 跨层删除 | C/D 盘两三百 GB、上百万文件 |
 | [V2EX#1238217](https://www.v2ex.com/t/1238217) | Linux | GLM agent 删上上级目录 | 8 亿 token 的工作成果丢失 |
+| [Replit Agent](https://www.theguardian.com/technology/2025/jul/18/replit-ai-agent-coding-deleted-production-database)（2025-07） | 云 | code freeze 期间删生产数据库 | SaaStr 创始人应用数据全丢，agent 称无法回滚 |
+| [Claude Cowork](https://www.anthropic.com/news)（2026-02，Agent Incident Ledger） | macOS | "tidy desktop" 时 `rm -rf` 误判空目录 | **15 年家庭照片**被删 |
+| [Gemini CLI](https://www.manifold.security/incidents)（2025-07，Agent Incident Ledger） | Linux | mkdir 失败后继续 `mv` 级联覆盖 | 用户文件被逐个覆盖至剩一个 |
 
 共同点：**这些命令文本在写作者的直觉里全都是"安全"的**。0.1 只覆盖 Windows；
 0.2 起同一条判定流水线也认得出 Linux 与 macOS 的失败路径；0.3 把

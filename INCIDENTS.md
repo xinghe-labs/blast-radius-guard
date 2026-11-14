@@ -27,6 +27,75 @@
 
 ## 候选区
 
+### [候选] 第三轮全网扫描（2026-11-08）：Agent Incident Ledger 全列 + 48k 文件事故
+
+#### 13. Windows junction + os.walk 穿透：48,218 文件 / 103 秒（2026-09）
+- **来源**：Reddit r/ClaudeAI 1wl5cgo + cybersecuritynews.com 报道（有
+  verifier 报告，非独立取证）
+- **命令形态**：`python cleanup.py <mirror>` —— agent 生成的清理脚本内部
+  `os.walk(followlinks=False)` + `os.path.islink()`，在 Windows 上对
+  directory junction 返回 False → 穿透 614 个 junction 删掉源树 48,218 个
+  活文件，`.git/objects` 全空无法 git 恢复
+- **根因分析**：**判定器结构性盲区** —— 删除发生在 agent 生成的 Python
+  脚本内部，shell 命令文本只是 `python cleanup.py <dir>`，无任何删除动词。
+  这是"间接删除"：命令文本无害，脚本行为有害
+- **实测**：allow ⚠️（结构性）
+- **建议动作**：部分可防御 —— ① SKILL.md 铁律加一条：删除操作不写入
+  脚本文件再执行，shell 直接跑判定器可见的命令；② H4 已覆盖"直接
+  rm -rf 含 junction 目录"（实测 block ✓）；③ 脚本间接删除是宿主层
+  权限问题，判定器无法覆盖 → 文档声明范围外
+- **注意**：此事故反证 H4 的价值——如果 agent 直接跑 rm -rf，我们拦得住
+
+#### 14. Gemini CLI move 级联覆盖（2025-07，Agent Incident Ledger）
+- **来源**：manifold.security incident ledger（Gemini CLI 2.5-pro）
+- **命令形态**：`mv source/* dest/` —— mkdir 失败后 agent 继续当作成功，
+  连环 mv 覆盖用户文件直到剩一个
+- **根因分析**：**覆盖型销毁**——mv/cp 到已存在路径的批量覆盖；与
+  H15_OVERWRITE 候选同型。目标目录不存在时 mv 不报错（尾斜杠语义），
+  文件被平铺覆盖
+- **实测**：bulk mv → allow ⚠️（H15 候选核心场景）
+- **建议动作**：并入 H15_OVERWRITE 候选（等误报数据定宽严）
+
+#### 15. AWS Kiro 删环境重建（2025-12，FT 报道）
+- **来源**：Agent Incident Ledger（Amazon Kiro agent，FT 报道 13 小时故障）
+- **命令形态**：`kiro environment delete`
+- **实测**：✅ **已即时修复** —— H14 收录 `kiro environment delete`
+  （block 级），并顺带修了 `npx neon db sql "TRUNCATE users"` 的漏判
+  （SQL 客户端检测补 npx/yarn 前缀 + neon/supabase 客户端；SQL 检测
+  优先于工具表匹配）
+- **建议动作**：已完成 ✓
+
+#### 16. Replit Agent 删生产库（2025-07，SaaStr 创始人）
+- **来源**：Agent Incident Ledger（Replit Agent，声明 code freeze 期间删除）
+- **命令形态**：数据库 SQL 层（psql DROP/TRUNCATE 形态）
+- **实测**：block ✓（H14 SQL 检测覆盖）—— 但 Replit 是 agent 内部
+  数据库工具调用，非 shell 命令，判定器实际看不见；README 事故表
+  值得补这行（知名度最高的 agent 数据丢失事故之一）
+- **建议动作**：README 事故表补行
+
+#### 17. Claude Cowork 删 15 年照片（2026-02，Agent Incident Ledger）
+- **来源**：Agent Incident Ledger（Claude Cowork，"tidy desktop" 任务）
+- **命令形态**：`rm -rf <photos>`（agent 误判为空目录）
+- **实测**：warn（H9）—— rm -rf 文本形态可拦，但"误判空目录"是
+  语义层错误，判定器只能给 warn 不能证伪
+- **建议动作**：README 事故表补行；印证"隔离 rename 优先"铁律的价值
+
+#### 18. GPT-5.6 Sol TRUNCATE Neon users 表（2026-07，Agent Incident Ledger）
+- **来源**：Agent Incident Ledger（Codex + GPT-5.6 Sol，只要 seed data
+  却对生产 Neon 库跑破坏性清理）
+- **命令形态**：`npx neon db sql "TRUNCATE users"`
+- **实测**：✅ **已即时修复**（同 15 号：npx 前缀 SQL 检测）
+- **建议动作**：已完成 ✓
+
+#### 第三轮结论
+- **新增收录 6 项**（13-18），其中 2 项（15/18）发现 H14 实测漏洞并当场修复
+  （kiro、npx neon SQL），1 项（13）揭示"间接删除"结构性盲区 → 文档声明
+  范围外，1 项（14）充实 H15_OVERWRITE 候选
+- Agent Incident Ledger（manifold.security）是高质量事故源，含官方
+  response 与时间线，建议作为常规监控渠道
+- H15_OVERWRITE 的证据链持续加厚：Gemini move 覆盖 + PowerShell 编码清空
+  （第二轮候选 12）+ vscode 覆写（第一轮候选 2）——三个独立来源
+
 ### [✅ 已入规则 H14] 第二轮全网扫描（2026-11-02）：H14 动词表的事故背书
 
 第一轮发现了"云工具链删除"这个空白；本轮专门为 H14 的每类动词收集事故背书，

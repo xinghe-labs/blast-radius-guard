@@ -708,6 +708,7 @@ def judge_command(
             "kubectl delete namespace", "kubectl delete ns",
             "terraform destroy", "pulumi destroy",
             "sql drop/truncate",
+            "kiro environment delete",
         )
         # 级别：block 形态通过独立 Hazard 覆盖 severity（RULES 表里 H14 默认 warn）
         detail = (
