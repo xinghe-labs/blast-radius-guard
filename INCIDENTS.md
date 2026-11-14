@@ -30,7 +30,8 @@
 ### [候选] 第三轮全网扫描（2026-11-08）：Agent Incident Ledger 全列 + 48k 文件事故
 
 #### 13. Windows junction + os.walk 穿透：48,218 文件 / 103 秒（2026-09）
-- **来源**：Reddit r/ClaudeAI 1wl5cgo + cybersecuritynews.com 报道（有
+- **来源**：https://www.reddit.com/r/ClaudeAI/comments/1wl5cgo/ + https://cybersecuritynews.com/claude-code-agent-file-deletion/
+- **原始记录**：Reddit r/ClaudeAI 1wl5cgo + cybersecuritynews.com 报道（有
   verifier 报告，非独立取证）
 - **命令形态**：`python cleanup.py <mirror>` —— agent 生成的清理脚本内部
   `os.walk(followlinks=False)` + `os.path.islink()`，在 Windows 上对
@@ -47,7 +48,8 @@
 - **注意**：此事故反证 H4 的价值——如果 agent 直接跑 rm -rf，我们拦得住
 
 #### 14. Gemini CLI move 级联覆盖（2025-07，Agent Incident Ledger）
-- **来源**：manifold.security incident ledger（Gemini CLI 2.5-pro）
+- **来源**：https://www.manifold.security/incidents (Gemini CLI 2.5-pro, 2025-07-21)
+- **原始记录**：manifold.security incident ledger（Gemini CLI 2.5-pro）
 - **命令形态**：`mv source/* dest/` —— mkdir 失败后 agent 继续当作成功，
   连环 mv 覆盖用户文件直到剩一个
 - **根因分析**：**覆盖型销毁**——mv/cp 到已存在路径的批量覆盖；与
@@ -57,7 +59,8 @@
 - **建议动作**：并入 H15_OVERWRITE 候选（等误报数据定宽严）
 
 #### 15. AWS Kiro 删环境重建（2025-12，FT 报道）
-- **来源**：Agent Incident Ledger（Amazon Kiro agent，FT 报道 13 小时故障）
+- **来源**：https://www.manifold.security/incidents (AWS Kiro, 2025-12, FT 报道)
+- **原始记录**：Agent Incident Ledger（Amazon Kiro agent，FT 报道 13 小时故障）
 - **命令形态**：`kiro environment delete`
 - **实测**：✅ **已即时修复** —— H14 收录 `kiro environment delete`
   （block 级），并顺带修了 `npx neon db sql "TRUNCATE users"` 的漏判
@@ -66,7 +69,8 @@
 - **建议动作**：已完成 ✓
 
 #### 16. Replit Agent 删生产库（2025-07，SaaStr 创始人）
-- **来源**：Agent Incident Ledger（Replit Agent，声明 code freeze 期间删除）
+- **来源**：https://www.manifold.security/incidents (Replit Agent, 2025-07-18)
+- **原始记录**：Agent Incident Ledger（Replit Agent，声明 code freeze 期间删除）
 - **命令形态**：数据库 SQL 层（psql DROP/TRUNCATE 形态）
 - **实测**：block ✓（H14 SQL 检测覆盖）—— 但 Replit 是 agent 内部
   数据库工具调用，非 shell 命令，判定器实际看不见；README 事故表
@@ -74,14 +78,16 @@
 - **建议动作**：README 事故表补行
 
 #### 17. Claude Cowork 删 15 年照片（2026-02，Agent Incident Ledger）
-- **来源**：Agent Incident Ledger（Claude Cowork，"tidy desktop" 任务）
+- **来源**：https://www.manifold.security/incidents (Claude Cowork, 2026-02-07)
+- **原始记录**：Agent Incident Ledger（Claude Cowork，"tidy desktop" 任务）
 - **命令形态**：`rm -rf <photos>`（agent 误判为空目录）
 - **实测**：warn（H9）—— rm -rf 文本形态可拦，但"误判空目录"是
   语义层错误，判定器只能给 warn 不能证伪
 - **建议动作**：README 事故表补行；印证"隔离 rename 优先"铁律的价值
 
 #### 18. GPT-5.6 Sol TRUNCATE Neon users 表（2026-07，Agent Incident Ledger）
-- **来源**：Agent Incident Ledger（Codex + GPT-5.6 Sol，只要 seed data
+- **来源**：https://www.manifold.security/incidents (GPT-5.6 Sol Neon, 2026-07-13)
+- **原始记录**：Agent Incident Ledger（Codex + GPT-5.6 Sol，只要 seed data
   却对生产 Neon 库跑破坏性清理）
 - **命令形态**：`npx neon db sql "TRUNCATE users"`
 - **实测**：✅ **已即时修复**（同 15 号：npx 前缀 SQL 检测）
@@ -143,7 +149,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
   push --force）
 
 #### 10. SQL 直删（DROP/TRUNCATE）
-- **来源**：prisma.io 官方博客（2026-07）明确指出 "committed DROP TABLE or
+- **来源**：https://www.prisma.io/blog/stop-your-ai-agent-dropping-your-database
+- **原始记录**：prisma.io 官方博客（2026-07）明确指出 "committed DROP TABLE or
   TRUNCATE can't be undone"
 - **命令形态**：`psql -c "DROP TABLE users"`、`TRUNCATE ... CASCADE`
 - **建议动作**：H14 收录 psql/mysql/sh 的 -c 参数里的 DROP/TRUNCATE 检测
@@ -169,7 +176,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
   （证明中文用户同样受害，L 站推广有共鸣点）
 
 #### 12. PowerShell 编码错误清空文件（linux.do#2402993 回复）
-- **来源**：linux.do 佬友经历：agent 用 PowerShell 编辑文件，编码错误把
+- **来源**：https://linux.do/t/topic/2402993
+- **原始记录**：linux.do 佬友经历：agent 用 PowerShell 编辑文件，编码错误把
   未备份文件清空
 - **根因**：与 H5 CJK 静默失败同族（PowerShell 编码/编码转换丢内容），
   但发生在**写路径**（Set-Content/编辑）而非删除
@@ -186,7 +194,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
 #### 1. 云资源 CLI/API 删除完全在判定范围外（多个独立事故）
 - **日期**：2026-02 ~ 2026-04
 - **平台**：全平台（云 API 无关本地 OS）
-- **来源**：
+- **来源**：https://github.com/anthropics/claude-code/issues/56603 等（见 README 事故表）
+- **原始记录**：
   - PocketOS：Cursor agent 删 Railway volume，9 秒清掉生产库+备份
     （theguardian.com/technology/2026/apr/29, AID-2026-0106）
   - claude-code#27063：`drizzle-kit push --force` 清空生产 PostgreSQL 60+ 表
@@ -206,7 +215,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
 #### 2. 非删除动词的数据销毁：覆写/重定向（vscode#298393 关联面）
 - **日期**：2026-02
 - **平台**：全平台
-- **来源**：claude-code#23701（覆写源码数日工作量，财务损失）；
+- **来源**：https://github.com/anthropics/claude-code/issues/23701, https://github.com/microsoft/vscode/issues/298393
+- **原始记录**：claude-code#23701（覆写源码数日工作量，财务损失）；
   microsoft/vscode#298393（agent 未授权删除文件/目录）
 - **命令形态**：`echo x > src/main.py`、`cp new old`（不带 -n 覆盖）、
   agent 的 write/edit 工具直接覆写
@@ -221,7 +231,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
 #### 3. MCP / 非.shell 工具的删除（claude-code#24559）
 - **日期**：2026-02
 - **平台**：全平台
-- **来源**：claude-code#24559（模型无视 MEMORY.md 警告，经 MCP 工具
+- **来源**：https://github.com/anthropics/claude-code/issues/24559
+- **原始记录**：claude-code#24559（模型无视 MEMORY.md 警告，经 MCP 工具
   不可逆删除）
 - **根因分析**：删除不走 shell，MCP 工具调用（filesystem delete 等）
   完全绕过命令行判定器
@@ -234,7 +245,8 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
 #### 4. Antigravity rd /s /q 引号链（2026-10-21）
 - **日期**：2026-10-21
 - **平台**：Windows
-- **来源**：discuss.ai.google.dev/t/antigravity-recursively-wiped-my-d-drive/191206
+- **来源**：https://discuss.ai.google.dev/t/antigravity-recursively-wiped-my-d-drive/191206
+- **原始记录**：discuss.ai.google.dev/t/antigravity-recursively-wiped-my-d-drive/191206
 - **命令形态**：`cmd.exe /c "rd /s /q \"C:\\Users\\...\\Temp\\...\\""`
 - **根因分析**：与 H0/H1 完全同型（cmd /c + 嵌套引号），但 2026-10 仍在发生
 - **现有规则为何没拦住**：**实测 block（H0_AMBIGUOUS）✓** —— 现有规则已覆盖
@@ -245,14 +257,16 @@ H14_CLOUD_TOOLING，block/warn 分级，tests CloudToolingTests 17 用例；
 #### 5. OpenAI 官方承认 GPT-5.6 会误删文件（2026-07）
 - **日期**：2026-07-17
 - **平台**：macOS（Matt Shumer 报告"删掉几乎所有 Mac 文件"）
-- **来源**：infoworld.com/article/4198216
+- **来源**：https://www.infoworld.com/article/4198216/openai-acknowledges-gpt-5-6-may-accidentally-delete-files-calls-it-an-honest-mistake.html
+- **原始记录**：infoworld.com/article/4198216
 - **根因分析**：官方确认但未公开具体命令形态 —— 无根因细节，暂无法提炼规则
 - **建议动作**：**观察**：等具体命令形态公开（如 form 披露或第三方复现），
   暂不采纳为规则（验证标准第 2 条不过）
 
 #### 6. github community#198646 Copilot agent 删 4-5 天工作
 - **日期**：2021-11（早期，但形态仍是 agent 未授权删除）
-- **来源**：github.com/orgs/community/discussions/198646
+- **来源**：https://github.com/orgs/community/discussions/198646
+- **原始记录**：github.com/orgs/community/discussions/198646
 - **建议动作**：与 vscode#298393 同型合并观察，不单独成规则
 
 ### 模板
