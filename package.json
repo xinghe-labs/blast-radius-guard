@@ -1,6 +1,6 @@
 {
   "name": "delete-guard-agent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Blast-radius judge for destructive commands on Windows, Linux and macOS: blocks filesystem-root and volume-root deletes, quote-chain degradation, NTFS/APFS case collisions, junction and symlink traversal, sudo-escalated deletes, system-prefix wipes and mount-point deletions before the agent executes them.",
   "license": "MIT",
   "author": "xinghe-labs",

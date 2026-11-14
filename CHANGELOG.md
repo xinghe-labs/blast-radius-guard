@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-08
+
+### Added
+
+- **H15_OVERWRITE** (warn) — overwrite-destruction: glob mv/cp into an
+  existing directory (Gemini CLI cascade overwrite), `>` redirect to a
+  non-empty file (PowerShell encoding wipe). Three independent incident
+  sources. Everyday forms verified to pass (8/8 matcher cases).
+- **find -exec nesting** — `find ... -exec rm {} \;` inner command now
+  recursively judged; container gets H8 batch semantics.
+- SKILL.md: "删除不入自写脚本" discipline (48k-file incident, 2026-09) +
+  principle-boundary section for MCP/script-mediated deletion with
+  host-permission guidance.
+
+### Fixed
+
+- `/d`-style single-letter POSIX paths no longer eaten by the cmd
+  single-flag whitelist for non-cmd verbs (audit regression find).
+
+Tests: 104 -> 112.
+
 ## [0.4.0] - 2026-11-02
 
 ### Added
@@ -168,7 +189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command was blocked with H4 + H9 reasons returned to the model. Positive
   control (`ls && cat && echo`) passed untouched.
 
-[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/xinghe-labs/blast-radius-guard/compare/v0.2.0...v0.3.0
