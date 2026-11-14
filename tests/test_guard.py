@@ -735,3 +735,30 @@ class ChineseIncidentRegressionTests(unittest.TestCase):
         )
         self.assertEqual(result["verdict"], "block")
         self.assertIn("H1_QUOTE_CHAIN", [h["code"] for h in result["hazards"]])
+
+
+class SingleLetterPosixPathTests(unittest.TestCase):
+    """单字母 POSIX 路径（/d /e /x）在任何动词语境下都是路径，不是 cmd flag。
+
+    审计期发现：find /d ... 的 /d 被 cmd 单 flag 白名单吃掉导致 H0 误报。
+    """
+
+    def test_find_single_letter_dir_warns(self):
+        result = guard.judge_command('find /d -name "*.log" -delete')
+        self.assertEqual(result["verdict"], "warn")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertNotIn("H0_AMBIGUOUS", codes)
+
+    def test_cmd_flags_still_work(self):
+        # cmd 系动词下单字母 flag 语义保留
+        result = guard.judge_command("rd /s /q D:\\x")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H9_PERMANENT_DELETE", codes)
+
+    def test_posix_single_letter_paths_not_flags(self):
+        for cmd in ("rm -rf /d/sub", "rm -rf /x", "rm -rf /e/data"):
+            with self.subTest(cmd=cmd):
+                result = guard.judge_command(cmd)
+                self.assertNotIn(
+                    "H0_AMBIGUOUS", [h["code"] for h in result["hazards"]]
+                )

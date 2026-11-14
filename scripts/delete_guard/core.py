@@ -267,8 +267,10 @@ def is_flag_token(v: str, cmd_verb: bool = False) -> bool:
         return False
     if v.startswith("-") and not re.match(r"^-\d", v):
         return True
+    # 单字母 cmd flag（/s /q /d）与多字母一样需要 cmd 系动词语境：
+    # POSIX 删除动词下的 /d /x 是真实路径（目录名恰好单字母合法存在）
     if _CMD_FLAG_RE.match(v):
-        return True
+        return cmd_verb
     if _CMD_LONG_FLAG_RE.match(v) and cmd_verb:
         return True
     return False
