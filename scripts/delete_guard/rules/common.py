@@ -29,6 +29,16 @@ RULES_COMMON: dict[str, tuple[str, str, str]] = {
         "永久删除而非移入隔离区，删除通常不进回收站/废纸篓",
         "codex#14487, cursor-forum#174156",
     ),
+    # H15：覆盖型销毁 —— 动词是 mv/cp/echo（非删除），但效果是既有数据
+    # 被无声覆盖。Gemini CLI 级联覆盖 + PowerShell 编码清空 + vscode 覆写
+    # 三个独立事故源（INCIDENTS.md 候选 2/12/14）。
+    "H15_OVERWRITE": (
+        "warn",
+        "覆盖型销毁：批量 mv/cp 落入已存在目录、> 重定向清空非空文件 ——"
+        "既有数据被无声覆盖，且常见于 mkdir 失败后 agent 继续执行的场景",
+        "Agent Incident Ledger (Gemini CLI 2025-07), linux.do#2402993 "
+        "(PS 编码清空), microsoft/vscode#298393",
+    ),
     # H14：云/容器/ORM/SQL 工具的破坏性动词 —— 动词不在 shell 删除词表里，
     # 但破坏力等同 rm -rf（PocketOS 9 秒清掉生产库+备份；terraform destroy
     # 毁掉 2.5 年生产设施）。完整动词表与事故背书见 INCIDENTS.md 候选 7-10。

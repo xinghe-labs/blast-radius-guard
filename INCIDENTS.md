@@ -29,7 +29,7 @@
 
 ### [候选] 第三轮全网扫描（2026-11-08）：Agent Incident Ledger 全列 + 48k 文件事故
 
-#### 13. Windows junction + os.walk 穿透：48,218 文件 / 103 秒（2026-09）
+#### [🧪 部分入测试] 13. Windows junction + os.walk 穿透：48,218 文件 / 103 秒（2026-09）
 - **来源**：https://www.reddit.com/r/ClaudeAI/comments/1wl5cgo/ + https://cybersecuritynews.com/claude-code-agent-file-deletion/
 - **原始记录**：Reddit r/ClaudeAI 1wl5cgo + cybersecuritynews.com 报道（有
   verifier 报告，非独立取证）
@@ -47,7 +47,7 @@
   权限问题，判定器无法覆盖 → 文档声明范围外
 - **注意**：此事故反证 H4 的价值——如果 agent 直接跑 rm -rf，我们拦得住
 
-#### 14. Gemini CLI move 级联覆盖（2025-07，Agent Incident Ledger）
+#### [✅ 已入规则 H15] 14. Gemini CLI move 级联覆盖（2025-07，Agent Incident Ledger）
 - **来源**：https://www.manifold.security/incidents (Gemini CLI 2.5-pro, 2025-07-21)
 - **原始记录**：manifold.security incident ledger（Gemini CLI 2.5-pro）
 - **命令形态**：`mv source/* dest/` —— mkdir 失败后 agent 继续当作成功，
@@ -92,6 +92,13 @@
 - **命令形态**：`npx neon db sql "TRUNCATE users"`
 - **实测**：✅ **已即时修复**（同 15 号：npx 前缀 SQL 检测）
 - **建议动作**：已完成 ✓
+
+#### 第三轮后续（2026-11-08 更新）
+- 候选 14 已实现为 **H15_OVERWRITE**（覆盖型销毁，warn 级，OverwriteTests 4 用例）
+- 候选 13 的防御动作已落地：SKILL.md 铁律「删除不入自写脚本」+ 原理边界节
+  （MCP/脚本间接删除 → 宿主 permission 配置指引）
+- find -exec 嵌套删除判定已实现（0.6-1）：`find ... -exec rm {} \;` 内层
+  命令递归判定，FindExecTests 4 用例
 
 #### 第三轮结论
 - **新增收录 6 项**（13-18），其中 2 项（15/18）发现 H14 实测漏洞并当场修复

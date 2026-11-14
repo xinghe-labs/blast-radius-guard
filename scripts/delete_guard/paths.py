@@ -227,6 +227,43 @@ def human_bytes(n: int) -> str:
     return f"{size:.1f} TB"
 
 
+def overwrite_risk(command: str) -> str | None:
+    """H15：覆盖型销毁检测（Gemini CLI move 级联 / vscode 覆写 / PS 编码清空）。
+
+    三种命中形态，全部要求"覆盖已存在内容"这个前提：
+      1. 通配符 mv/cp 批量落入已存在目录（Gemini 事故：mkdir 失败仍继续）
+      2. > 重定向目标文件已存在且非空（PowerShell 编码清空事故）
+      3. mv/cp 不带 -n/-i 且目标为已存在目录下的同名路径（vscode 覆写）
+    单文件改名、写新文件、mkdir 后首次写入：放行（噪声控制）。
+    返回形态描述，不命中 None。
+    """
+    import os as _os
+    norm = _norm_cmd(command)
+
+    # 形态 1/3：mv / cp 批量覆盖（通配符源 + 已存在目标目录）
+    # 允许 -r/-rf/-a 等旗标夹在动词与源之间
+    m = re.search(r"\b(mv|cp)\s+(?:-[a-zA-Z]+\s+)?(\S*\*[\S\s]*?)\s+(\S+)$", norm)
+    if m and "*?" not in m.group(3):
+        dest = m.group(3).strip("'\"")
+        if _os.path.isdir(dest):
+            return (
+                f"批量覆盖：{m.group(1)} 通配源 → 已存在目录 {dest!r}"
+                "（同名文件将被无声覆盖）"
+            )
+
+    # 形态 2：> 重定向到已存在非空文件（>> 追加不拦：负向前瞻排除 >>）
+    m = re.search(r"(?:^|&&|;)\s*[^&;]*?(?<!>)>(?!>)\s*(\S+)\s*(?:2>|&|$)", norm)
+    if m:
+        target = m.group(1).strip("'\"")
+        if _os.path.isfile(target):
+            try:
+                if _os.path.getsize(target) > 0:
+                    return f"重定向覆盖：> {target!r}（文件已存在且非空，内容将被清空重写）"
+            except OSError:
+                pass
+    return None
+
+
 def _norm_cmd(text: str) -> str:
     return " ".join(text.lower().split())
 

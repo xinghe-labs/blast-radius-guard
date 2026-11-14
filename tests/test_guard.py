@@ -762,3 +762,72 @@ class SingleLetterPosixPathTests(unittest.TestCase):
                 self.assertNotIn(
                     "H0_AMBIGUOUS", [h["code"] for h in result["hazards"]]
                 )
+
+
+class OverwriteTests(unittest.TestCase):
+    """H15：覆盖型销毁（Gemini move 级联 / PS 编码清空 / vscode 覆写）。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.tmp, "dest"))
+        with open(os.path.join(self.tmp, "dest", "a.txt"), "w") as f:
+            f.write("old")
+        with open(os.path.join(self.tmp, "existing.txt"), "w") as f:
+            f.write("content")
+        self._old_cwd = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(self._cleanup)
+
+    def _cleanup(self):
+        os.chdir(self._old_cwd)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_glob_mv_into_existing_dir_warns(self):
+        # Gemini CLI 级联覆盖形态
+        result = guard.judge_command(f"mv src/* {self.tmp}/dest/")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H15_OVERWRITE", codes)
+        self.assertEqual(result["verdict"], "warn")
+
+    def test_glob_cp_into_existing_dir_warns(self):
+        result = guard.judge_command(f"cp -r new/* {self.tmp}/dest/")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H15_OVERWRITE", codes)
+
+    def test_redirect_overwrite_nonempty_warns(self):
+        # PowerShell 编码清空形态
+        result = guard.judge_command(f"echo x > {self.tmp}/existing.txt")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H15_OVERWRITE", codes)
+
+    def test_safe_everyday_forms_allow(self):
+        for cmd in ("mv a.txt b.txt", f"echo x > {self.tmp}/new.txt",
+                    f"echo x >> {self.tmp}/existing.txt",
+                    "cp config.example.json config.json"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(guard.judge_command(cmd)["verdict"], "allow")
+
+
+class FindExecTests(unittest.TestCase):
+    """0.6-1：find -exec 嵌套删除判定（判定器必须能看见内层 rm）。"""
+
+    def test_exec_rm_blocks(self):
+        result = guard.judge_command('find /data -name "*.tmp" -exec rm {} \\;')
+        self.assertEqual(result["verdict"], "block")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H8_GLOB_RECURSIVE", codes)
+        self.assertIn("H0_AMBIGUOUS", codes)
+
+    def test_exec_rm_rf_blocks(self):
+        result = guard.judge_command("find /d -exec rm -rf {} \\;")
+        self.assertEqual(result["verdict"], "block")
+
+    def test_sudo_find_exec_blocks(self):
+        result = guard.judge_command("sudo find /data -exec rm {} \\;")
+        codes = [h["code"] for h in result["hazards"]]
+        self.assertIn("H10_SUDO_DELETE", codes)
+        self.assertEqual(result["verdict"], "block")
+
+    def test_find_without_exec_allows(self):
+        result = guard.judge_command('find /data -name "*.log" -print')
+        self.assertEqual(result["verdict"], "allow")

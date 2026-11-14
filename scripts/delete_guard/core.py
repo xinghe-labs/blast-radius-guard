@@ -32,6 +32,7 @@ from .paths import (
     is_drive_root,
     cloud_tool_match,
     glob_base_dir,
+    overwrite_risk,
     is_wsl_windows_mount,
     macos_home_special,
     posix_system_prefix,
@@ -631,6 +632,17 @@ def judge_command(
         add("H0_AMBIGUOUS", parsed.ambiguous_reason or "")
         return _result(hazards, [], unknowns)
 
+    # find <path> ... -exec <cmd> {} \; —— 内层命令递归判定
+    # （候选 13/0.6：-exec rm 是嵌套删除，判定器必须能看见）
+    layers_from_parse = parsed.shell_layers  # parse 阶段已检出的跳转层
+    exec_match = re.search(r"-exec\s+(.+?)\s*\{\}\s*(?:\\;|\+)", command)
+    if exec_match and not layers_from_parse:
+        inner = exec_match.group(1).replace("{}", "<matched-file>")
+        inner_r = judge_command(inner, cwd, wsl_context, privileged_context)
+        # 容器危险：-exec 作用于 find 命中的每个文件（批量语义）
+        add("H8_GLOB_RECURSIVE", "-exec 批量执行：作用于 find 命中的所有文件")
+        return _merge_inner(hazards, unknowns, inner_r, ["find -exec"])
+
     # 跨层执行：提取内层命令文本，递归判定，危险按层级累加。
     inner_text, layers = unwrap_launcher_text(command, parsed.tokens)
     if layers:
@@ -699,6 +711,11 @@ def judge_command(
         wsl_context = is_wsl() or "wsl" in [
             l.lower() for l in parsed.shell_layers
         ]
+
+    # H15 覆盖型销毁（命令级判定；需要目标存在性核对，仅在真实 FS 上有效）
+    ow_hit = overwrite_risk(command)
+    if ow_hit:
+        add("H15_OVERWRITE", ow_hit)
 
     # H14 云/容器/ORM/SQL 工具的破坏性动词（命令级判定）
     cloud_hit = cloud_tool_match(command)

@@ -115,6 +115,25 @@ mv -- "/path/bad-old-output" "$q/bad-old-output"
   删除操作必须以 shell 直接可见的命令执行（跑判定器），绝不封装进
   自己编写的脚本；批量删除先输出文件清单（dry-run）人工过目。
 
+## 判定器的原理边界（MCP / 脚本间接删除）
+
+判定器原理是**解析 shell 命令文本**。有两类数据销毁它原理上看不见：
+
+1. **MCP 工具调用**（filesystem delete、数据库工具的 drop 等）：
+   不经过 bash/powershell 工具，判定器无从介入。
+2. **脚本间接删除**（agent 写一个 Python 清理脚本再执行）：
+   shell 命令只是 `python cleanup.py <dir>`，删除行为在脚本内部。
+
+对应的宿主层防御（判定器之外的第二道墙）：
+
+- **Claude Code**：permission 配置里对 `mcp__*` 的删除类工具加
+  `deny`/`ask` 规则；`bypassPermissions` 只在容器/VM 里用（官方文档
+  明确警告）。PreToolUse hook 的 matcher 可以同时挂 `Bash|PowerShell|Task`。
+- **pi**：扩展已拦截 bash/powershell；MCP 工具调用可另装权限类扩展。
+- **通用纪律**：`bypassPermissions`/`never ask` 是绝大多数事故的共同前提
+  （L 站/V2EX 事故复盘共识）——交互式确认挡不住 agent 自主性失控，
+  但至少把"每次执行"的知情权留给你。
+
 ## 与宿主安全机制的分工
 
 Claude Code 的 permission 系统、Codex 的 sandbox 管的是"这次工具调用能不能跑"；

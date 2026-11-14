@@ -184,6 +184,9 @@ python -m unittest discover tests -v
 - macOS 宿主上的 pi 扩展 / Claude Code hook 实机加载（CI 只覆盖了判定器与测试；
   扩展层的 Python 探测在 darwin 上未跑过端到端）
 - Codex 无 hook 机制，只有 skill 层（宿主限制）
+- MCP 工具调用与"agent 写脚本再执行"的间接删除（2026-09 的 48k 文件事故
+  形态）原理上不在 shell 判定范围内 —— 防御依赖宿主 permission 配置与
+  使用纪律，见 SKILL.md「判定器的原理边界」
 
 ## 反馈误报 / 漏报
 
